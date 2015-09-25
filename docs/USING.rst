@@ -57,49 +57,68 @@ Using CURL Commands
 Included herwith are some examples about interacting with HaaS API using the curl 
 utility.
 
-** Example for registering a Node which use IPMI **
-Node name: dummyNoderHaaS-02
-Ipmi info: 
-hostname:-           ipmiHost4node-02
-ipmi_username:-      ipmiUser4node-02
-ipmi_password:-      ipmiPass4node-02
+Registering a Node which uses IPMI for out of band management
+-------------------------------------------------------------
+
+
+   - **Node name:**  dummyNoderHaaS-02
+   - **Ipmi info:**  
+      + **hostname:**           ipmiHost4node-02
+      + **ipmi_username:**      ipmiUser4node-02
+      + **ipmi_password:**      ipmiPass4node-02
 
 For nodes using IPMI use the following api call:
 
-curl -X PUT http://127.0.0.1:5001/node/dummyNoderHaaS-02 -d '
-> {"obm": { "type": "http://schema.massopencloud.org/haas/v0/obm/ipmi",
-> "ipmi_host": "ipmiHost4node-02",
-> "ipmi_user": "ipmiUser4node-02",
-> "ipmi_password": "ipmiPass4node-02"
-> }}'
+*Command::
 
-** Example to register a switch with HaaS **
-curl -X put http://127.0.0.1:5000/switch/bHaaS_switch -d '
-{ "type": "http://schema.massopencloud.org/haas/v0/switches/mock" }
+   curl -X PUT http://127.0.0.1:5001/node/dummyNoderHaaS-02 -d '
+   > {"obm": { "type": "http://schema.massopencloud.org/haas/v0/obm/ipmi",
+   > "host": "ipmiHost4node-02",
+   > "user": "ipmiUser4node-02",
+   > "password": "ipmiPass4node-02"
+   > }}'
+
+
+Registering a switch with HaaS
+------------------------------
+::
+
+   curl -X put http://127.0.0.1:5000/switch/bHaaS_switch -d '
+   { "type": "http://schema.massopencloud.org/haas/v0/switches/mock" }
 
 As of 13 Aug 2015 there is no cli equivalent for this
 
-** Adding ports to the switch **
 
-Command: curl -X put http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01
+Adding ports to the switch
+--------------------------
+::
+
+   curl -X put http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01
+
 will register port-01 of switch named bHaaS_switch
 
-** Deleting Ports from HaaS **
+Deleting ports from HaaS
+------------------------
 
-Commands: curl -X DELETE http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01
+::
+
+   curl -X DELETE http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01
 
 Will delete that port from the switch. 
 
 
-** Command to connect node nic to the switch port **
+Connecting node nic to the switch port
+--------------------------------------
 
 Nodename: 		dummyNode-01
 nic on the node: 	eth0
 Switch name: 		bhaas_switch
 Port on the switch: 	port-01
 
-curl -X POST http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01/connect_nic -d '
-> { "node": "dummyNode-01", "nic": "eth0" }'
+::
+
+   curl -X POST http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01/connect_nic -d '
+   > { "node": "dummyNode-01", "nic": "eth0" }'
 
 
 
