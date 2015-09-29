@@ -16,7 +16,9 @@
 from haas import config
 from haas.config import cfg
 
-from haas.rest import APIError, ServerError
+from haas.rest import APIError, ServerError 
+    # Do we need ServerError ? It is not supposed to know 
+    # what happens on the server side
 import requests
 
 
