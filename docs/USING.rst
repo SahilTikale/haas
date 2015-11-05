@@ -81,21 +81,36 @@ For nodes using IPMI use the following api call:
 
 Registering a switch with HaaS
 ------------------------------
-::
+*Command to register a mock switch::
 
    curl -X put http://127.0.0.1:5000/switch/bHaaS_switch -d '
-   { "type": "http://schema.massopencloud.org/haas/v0/switches/mock" }
+   { "type": "http://schema.massopencloud.org/haas/v0/switches/mock" }'
 
-As of 13 Aug 2015 there is no cli equivalent for this
+
+*Command to register a dell switch::
+
+	curl -X put http://127.0.0.1/switch/dellSwitch-01 -d '
+	{ "type": "http://schema.massopencloud.org/haas/v0/switches/powerconnect55xx", 
+	"username": "admin", "hostname": "192.168.3.247",
+	"password": "<cleartext-passwordstring>"
+	}'
+
+
+As of 05 Nov 2015 there is no cli equivalent for this
 
 
 Adding ports to the switch
 --------------------------
-::
+*Example01::
 
    curl -X put http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01
 
 will register port-01 of switch named bHaaS_switch
+
+*Example02::
+   curl -X put http://127.0.0.1/switch/dellSwitch-01/port/gi1/0/4
+
+will register port "gil/0/4" of switch named dellSwitch-01
 
 Deleting ports from HaaS
 ------------------------
