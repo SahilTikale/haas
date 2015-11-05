@@ -69,7 +69,7 @@ Registering a Node which uses IPMI for out of band management
 
 For nodes using IPMI use the following api call:
 
-*Command::
+::
 
    curl -X PUT http://127.0.0.1:5001/node/dummyNoderHaaS-02 -d '
    > {"obm": { "type": "http://schema.massopencloud.org/haas/v0/obm/ipmi",
@@ -81,13 +81,15 @@ For nodes using IPMI use the following api call:
 
 Registering a switch with HaaS
 ------------------------------
-*Command to register a mock switch::
+**To register a mock switch**
+::
 
    curl -X put http://127.0.0.1:5000/switch/bHaaS_switch -d '
    { "type": "http://schema.massopencloud.org/haas/v0/switches/mock" }'
 
 
-*Command to register a dell switch::
+**To register a dell switch** 
+::
 
 	curl -X put http://127.0.0.1/switch/dellSwitch-01 -d '
 	{ "type": "http://schema.massopencloud.org/haas/v0/switches/powerconnect55xx", 
@@ -101,14 +103,18 @@ As of 05 Nov 2015 there is no cli equivalent for this
 
 Adding ports to the switch
 --------------------------
-*Example01::
+**Example01**
+::
 
    curl -X put http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01
 
 will register port-01 of switch named bHaaS_switch
 
-*Example02::
+**Example02**
+::
+
    curl -X put http://127.0.0.1/switch/dellSwitch-01/port/gi1/0/4
+
 
 will register port "gil/0/4" of switch named dellSwitch-01
 
