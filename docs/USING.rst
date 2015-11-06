@@ -127,6 +127,17 @@ Deleting ports from HaaS
 
 Will delete that port from the switch. 
 
+**Batch Command**
+::
+
+  for i in {3..11..2};  
+	do 
+	curl -X put http://127.0.0.1/switch/dellSwitch-01/port/gi1/0/$i; 
+	done
+
+will delete odd numbered ports in range [gi1/0/3", "gi1/0/11"] 
+
+
 
 Connecting node nic to the switch port
 --------------------------------------
