@@ -158,6 +158,15 @@ class Obm(AnonModel):
         """
         assert False, "Subclasses MUST override the power_cycle method "
 
+<<<<<<< HEAD
+=======
+    @no_dry_run
+    def power_off(self):
+        if self._ipmitool(['chassis', 'power', 'off']) != 0:
+            raise OBMError('Could not power off node %s', self.label)
+
+    @no_dry_run
+>>>>>>> 994a5ed6a1f8d18ecef16361860784ac09186215
     def start_console(self):
         """Starts logging to the console. """
         assert False, "Subclasses MUST override the start_console method"
@@ -408,6 +417,7 @@ class Headnode(Model):
         may be made to it, other than starting, stopping or deleting it.
         """
         check_call(_on_virt_uri(['virsh', 'start', self._vmname()]))
+        check_call(_on_virt_uri(['virsh', 'autostart', self._vmname()]))
         self.dirty = False
 
     @no_dry_run
@@ -417,6 +427,7 @@ class Headnode(Model):
         This does a hard poweroff; the OS is not given a chance to react.
         """
         check_call(_on_virt_uri(['virsh', 'destroy', self._vmname()]))
+        check_call(_on_virt_uri(['virsh', 'autostart', '--disable', self._vmname()]))
 
     def _vmname(self):
         """Returns the name (as recognized by libvirt) of this vm."""

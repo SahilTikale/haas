@@ -1,0 +1,47 @@
+# This is an example haas.cfg file suitable for use for development without a
+# full set of hardware (switches, nodes, libvirtd...). It can be used as-is,
+# but using the vlan_pool allocator may also be desirable (see the  comments
+# below).
+[general]
+log_level = debug
+
+[headnode]
+trunk_nic = eth0
+base_imgs = img1, img2, img3, img4
+libvirt_endpoint = qemu:///system
+
+[client]
+endpoint = http://127.0.0.1:5000
+
+[database]
+uri = sqlite:///haas.db
+
+[devel]
+#dry_run=True
+
+[extensions]
+haas.ext.switches.mock =
+haas.ext.switches.switch_haas =
+#Add the following line to activate OBM management
+#using recursive haas
+haas.ext.obm.haas_obm =		
+#haas.ext.network_allocators.null =
+
+# Depending on what you're trying to do, you may want to use the vlan_pool
+# network allocator instead of the null allocator. To do this, comment out the
+# null allocator extension above, and uncomment the following:
+#
+haas.ext.network_allocators.vlan_pool =
+#
+[haas.ext.network_allocators.vlan_pool]
+vlans = 100-200, 300-500
+
+#Following section contains information about 
+# the project from base haas which will serve as 
+# as the pool of hardware and network resources to 
+# Recursive HaaS. 
+[recursive]
+project = proj-01 #<Name of the project>
+img = img1	  #<Headnode image used by recursive HaaS>
+admin = admin4proj-01 #<username of the project administrator>
+password = pass1234   #<password of the project administrator>
