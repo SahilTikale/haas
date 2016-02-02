@@ -16,11 +16,13 @@
 
 from sqlalchemy import Column, String, Integer, ForeignKey
 import schema
-
+import subprocess
 
 from haas.model import Obm
 from haas.errors import OBMError
 from haas.dev_support import no_dry_run
+from subprocess import call, check_call, Popen, PIPE
+
 
 class Ipmi(Obm):
     id = Column(Integer, ForeignKey('obm.id'), primary_key=True)
