@@ -69,7 +69,7 @@ Registering a Node which uses IPMI for out of band management
 
 For nodes using IPMI use the following api call:
 
-*Command::
+::
 
    curl -X PUT http://127.0.0.1:5001/node/dummyNoderHaaS-02 -d '
    > {"obm": { "type": "http://schema.massopencloud.org/haas/v0/obm/ipmi",
@@ -81,21 +81,42 @@ For nodes using IPMI use the following api call:
 
 Registering a switch with HaaS
 ------------------------------
+**To register a mock switch**
 ::
 
    curl -X put http://127.0.0.1:5000/switch/bHaaS_switch -d '
-   { "type": "http://schema.massopencloud.org/haas/v0/switches/mock" }
+   { "type": "http://schema.massopencloud.org/haas/v0/switches/mock" }'
 
-As of 13 Aug 2015 there is no cli equivalent for this
+
+**To register a dell switch** 
+::
+
+	curl -X put http://127.0.0.1/switch/dellSwitch-01 -d '
+	{ "type": "http://schema.massopencloud.org/haas/v0/switches/powerconnect55xx", 
+	"username": "admin", "hostname": "192.168.3.247",
+	"password": "<cleartext-passwordstring>"
+	}'
+
+
+As of 05 Nov 2015 there is no cli equivalent for this
 
 
 Adding ports to the switch
 --------------------------
+**Example01**
 ::
 
    curl -X put http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01
 
 will register port-01 of switch named bHaaS_switch
+
+**Example02**
+::
+
+   curl -X put http://127.0.0.1/switch/dellSwitch-01/port/gi1/0/4
+
+
+will register port "gil/0/4" of switch named dellSwitch-01
 
 Deleting ports from HaaS
 ------------------------
@@ -105,6 +126,17 @@ Deleting ports from HaaS
    curl -X DELETE http://127.0.0.1:5000/switch/bHaaS_switch/port/port-01
 
 Will delete that port from the switch. 
+
+**Batch Command**
+::
+
+  for i in {3..11..2};  
+	do 
+	curl -X put http://127.0.0.1/switch/dellSwitch-01/port/gi1/0/$i; 
+	done
+
+will delete odd numbered ports in range [gi1/0/3", "gi1/0/11"] 
+
 
 
 Connecting node nic to the switch port
