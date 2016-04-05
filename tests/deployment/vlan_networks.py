@@ -37,11 +37,15 @@ def server_init():
     server.register_drivers()
     server.validate_state()
 
+
+with_request_context = pytest.yield_fixture(with_request_context)
+
 site_layout = pytest.fixture(site_layout)
 
 pytestmark = pytest.mark.usefixtures('configure',
                                      'server_init',
                                      'db',
+                                     'with_request_context',
                                      'site_layout')
 
 
@@ -116,7 +120,7 @@ class TestNetworkVlan(NetworkTest):
 
         def delete_networks():
             # Query the DB for nodes on this project
-            project = api._must_find(db, model.Project, 'anvil-nextgen')
+            project = api._must_find(model.Project, 'anvil-nextgen')
             nodes = project.nodes
             ports = self.get_all_ports(nodes)
 

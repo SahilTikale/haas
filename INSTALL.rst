@@ -257,6 +257,43 @@ location specified in ``haas.cfg``) and initialize its tables::
 
   haas init_db
 
+
+Authentication and Authorization
+--------------------------------
+
+HaaS includes a pluggable architecture for authentication and authorization.
+HaaS ships with two authentication backends. One uses HTTP basic auth, with
+usernames and passwords stored in the haas database. The other is a "null"
+backend, which does no authentication or authorization checks. This can be
+useful for testing and experimentation but *should not* be used in production.
+You must enable exactly one auth backend.
+
+Database Backend
+^^^^^^^^^^^^^^^^
+
+To enable the database backend, make sure the **[extensions]** section of
+``haas.cfg`` contains::
+
+  haas.ext.auth.database =
+
+Then initialize the database as described above. You will need to add an
+initial user with administrative privileges to the database in order to
+bootstrap the system. You can do this by running the following command from
+within the directory containing the server's ``haas.cfg``::
+
+  haas create_admin_user <username> <password>
+
+You can then create additional users via the HTTP API. You may want to
+subsequently delete the initial user; this can also be done via the API.
+
+Null Backend
+^^^^^^^^^^^^
+
+To enable the null backend, make sure **[extensions]** contains::
+
+  haas.ext.auth.null =
+
+
 Running the Server under Apache
 -------------------------------
 
@@ -304,13 +341,58 @@ You should also set apache to start on boot::
 
   sudo chkconfig httpd on
 
-The networking server may be started by running::
+Running the network server:
+---------------------------
+
+Using systemd:
+--------------
+
+A systemd script for running the network server is available in the 'scripts' directory.
+Name of the script is: haas_network.service
+
+Centos:
+-------
+
+Centos uses systemd to controll all its processes. 
+
+Place the file haas_network.service under:
+``/usr/lib/systemd/system/``
+
+Ubuntu:
+-------
+Systemd is available from Ubuntu 15.04 onwards and LTS version 16.04 will ship with systemd by default.
+
+Place the file haas_network.service under:
+``/lib/systemd/system/``
+
+
+Starting the service:
+---------------------
+
+Following commands will start the daemon:
+``systemctl daemon-reload``
+``systemctl start haas_network``
+
+You can check the status using:
+``systemctl status haas_network``
+
+To auto-start the service on boot:
+``systemctl enable haas_network``
+
+
+For systems that do not support systemd:
+----------------------------------------
+Some systems like the LTS version of Ubuntu, Ubuntu 14.04 does not come with systemd pre-installed.
+It uses "Upstart" an equivalent of systemd to manage its daemons/processes.
+
+For such systems, the networking server may be started as the HaaS user by running::
 
   haas serve_networks &
 
-as the HaaS user. To make this happen on boot, add the following to ``/etc/rc.local``::
+To make this happen on boot, add the following to ``/etc/rc.local``::
 
   (cd /var/lib/haas && su haas_user -c 'haas serve_networks') &
+
 
 Congratulations- at this point, you should have a functional HaaS service running!
 

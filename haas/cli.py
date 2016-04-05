@@ -50,7 +50,7 @@ def cmd(f):
             f(*args, **kwargs)
         except TypeError:
             # TODO TypeError is probably too broad here.
-            sys.stderr.write('Wrong number of arguements.  Usage:\n')
+            sys.stderr.write('Invalid arguements.  Usage:\n')
             help(f.__name__)
     command_dict[f.__name__] = wrapped
     def get_usage(f):
@@ -84,17 +84,38 @@ def object_url(*args):
         url += '/' + urllib.quote(arg,'')
     return url
 
+def do_request(fn, url, data={}):
+    """Helper function for making HTTP requests against the API.
+
+    Arguments:
+
+        `fn` - a function from the requests library, one of requests.put,
+               requests.get...
+        `url` - The url to make the request to
+        `data` - the body of the request.
+
+    If the environment variables HAAS_USERNAME and HAAS_PASSWORD are
+    defined, The request will use HTTP basic auth to authenticate, with
+    the given username and password.
+    """
+    kwargs = {}
+    username = os.getenv('HAAS_USERNAME')
+    password = os.getenv('HAAS_PASSWORD')
+    if username is not None and password is not None:
+        kwargs['auth'] = (username, password)
+    return check_status_code(fn(url, data=data, **kwargs))
+
 def do_put(url, data={}):
-    return check_status_code(requests.put(url, data=json.dumps(data)))
+    return do_request(requests.put, url, data=json.dumps(data))
 
 def do_post(url, data={}):
-    return check_status_code(requests.post(url, data=json.dumps(data)))
+    return do_request(requests.post, url, data=json.dumps(data))
 
 def do_get(url):
-    return check_status_code(requests.get(url))
+    return do_request(requests.get, url)
 
 def do_delete(url):
-    return check_status_code(requests.delete(url))
+    return do_request(requests.delete, url)
 
 @cmd
 def serve(port):
@@ -141,14 +162,19 @@ def init_db():
     server.init(init_db=True)
 
 @cmd
-def user_create(username, password):
-    """Create a user <username> with password <password>."""
-    try:
-        ret = h.user_create(username, password)
-        print "    SUCCESS: user %s added. " % username
-    except DuplicateName as e:
-        print e.message
+def user_create(username, password, is_admin):
+    """Create a user <username> with password <password>.
 
+    <is_admin> may be either "admin" or "regular", and determines whether
+    the user has administrative priveledges.
+    """
+    url = object_url('/auth/basic/user', username)
+    if is_admin not in ('admin', 'regular'):
+        raise TypeError("is_admin must be either 'admin' or 'regular'")
+    do_put(url, data={
+        'password': password,
+        'is_admin': is_admin == 'admin',
+    })
 
 @cmd
 def network_create(network, creator, access, net_id):
@@ -208,16 +234,8 @@ def network_delete(network):
 @cmd
 def user_delete(username):
     """Delete the user <username>"""
-    try:
-        ret = h.user_delete(username)
-        print "Success: username %s deleted. " % username
-    except IncompleteDependency as e:
-        print e.message
-    except UnknownError as e:
-        print e.message
-
-#    url = object_url('user', username)
-#    do_delete(url)
+    url = object_url('/auth/basic/user', username)
+    do_delete(url)
 
 @cmd
 def list_projects():
@@ -236,32 +254,16 @@ def list_projects():
 #    do_get(url)
 
 @cmd
-def project_add_user(project, username):
+def user_add_project(user, project):
     """Add <user> to <project>"""
-    try:
-        ret = h.project_add_user(project, username)
-        print "Success: User %s added to project %s " %(username, project)
-    except DuplicateName as e:
-        print e.message
-    except IncompleteDependency as e:
-        print e.message
-    except UnknownError as e:
-        print e.message
-
-#    url = object_url('project', project, 'add_user')
-#    do_post(url, data={'user': user})
+    url = object_url('/auth/basic/user', user, 'add_project')
+    do_post(url, data={'project': project})
 
 @cmd
-def project_remove_user(project, username):
+def user_remove_project(user, project):
     """Remove <user> from <project>"""
-
-    try:
-        ret = h.project_remove_user(project, username)
-        print "Success: User %s removed fromproject %s " %(username, project)
-    except IncompleteDependency as e:
-        print e.message
-    except UnknownError as e:
-        print e.message
+    url = object_url('/auth/basic/user', user, 'remove_project')
+    do_post(url, data={'project': project})
 
 @cmd
 def project_create(project):
@@ -374,18 +376,34 @@ def headnode_stop(headnode):
     do_post(url)
 
 @cmd
-def node_register(node, ipmi_host, ipmi_user, ipmi_pass):
-    """Register a node named <node>, with the given ipmi host/user/password"""
+def node_register(node, subtype, *args):
+    """Register a node named <node>, with the given type
+	if obm is of type: ipmi then provide arguments
+	"ipmi", <hostname>, <ipmi-username>, <ipmi-password> 
+    """
+    obm_api = "http://schema.massopencloud.org/haas/v0/obm/"
+    obm_types = [ "ipmi", "mock" ]
+    #Currently the classes are hardcoded
+    #In principle this should come from api.py
+    #In future an api call to list which plugins are active will be added.
+    
 
-    try:
-        ret = h.node_register(node, ipmi_host, ipmi_user, ipmi_pass)
-        print "Success: Node %s registered with HaaS " % (node)
-    except DuplicateName as e:
-        print e.message
-    except IncompleteDependency as e:
-        print e.message
-    except UnknownError as e:
-        print e.message
+    if subtype in obm_types: 
+	if len(args) == 3:
+	    obminfo = {"type": obm_api+subtype, "host": args[0],
+	    		"user": args[1], "password": args[2]
+	    	      }
+	else:
+	    sys.stderr.write('ERROR: subtype '+subtype+' requires exactly 3 arguments\n')
+	    sys.stderr.write('<hostname> <ipmi-username> <ipmi-password>\n')
+	    return
+    else: 
+	sys.stderr.write('ERROR: Wrong OBM subtype supplied\n')
+	sys.stderr.write('Supported OBM sub-types: ipmi, mock\n')
+	return
+
+    url = object_url('node', node)
+    do_put(url, data={"obm": obminfo})
 
 @cmd
 def node_delete(node):
@@ -414,6 +432,12 @@ def node_power_cycle(node):
         print e.message
     except UnknownError as e:
         print e.message
+
+@cmd
+def node_power_off(node):
+    """Power off <node>"""
+    url = object_url('node', node, 'power_off')
+    do_post(url)
 
 @cmd
 def node_register_nic(node, nic, macaddr):
@@ -528,60 +552,47 @@ def headnode_detach_network(headnode, hnic):
         print e.message
 
 @cmd
-def port_register(port):
-    """Register a <port> on a switch"""
-
-    try:
-        ret = h.port_register(port)
-        print "Success: Registered port %s with HaaS " % (port)
-    except DuplicateName as e:
-        print e.message
-    except IncompleteDependency as e:
-        print e.message
-    except UnknownError as e:
-        print e.message
+def switch_register(switch, subtype, *args):
+    """Register a switch with name <switch> and
+    <subtype>, <hostname>, <username>,  <password>
+    eg. haas switch_register mock03 mock mockhost01 mockuser01 mockpass01
+    """
+    switch_api = "http://schema.massopencloud.org/haas/v0/switches/"
+    switchinfo = { "type": switch_api+subtype, "hostname": args[0],
+                        "username": args[1], "password": args[2] }
+    url = object_url('switch', switch)
+    do_put(url, data=switchinfo)
 
 @cmd
-def port_delete(port):
-    """Delete a <port> on a switch"""
+def switch_delete(switch):
+    """Delete a <switch> """
+    url = object_url('switch', switch)
+    do_delete(url)
 
-    try:
-        ret = h.port_delete(port)
-        print "Success: Port %s unregistered from HaaS " % (port)
-    except DuplicateName as e:
-        print e.message
-    except IncompleteDependency as e:
-        print e.message
-    except UnknownError as e:
-        print e.message
 
 @cmd
-def port_connect_nic(port, node, nic):
-    """Connect a <port> on a switch to a <nic> on a <node>"""
-
-    try:
-        ret = h.port_connect_nic(port, node, nic)
-        print "Success: Nic %s of node %s connected at port %s " % (nic,node,port)
-    except DuplicateName as e:
-        print e.message
-    except IncompleteDependency as e:
-        print e.message
-    except UnknownError as e:
-        print e.message
+def port_register(switch, port):
+    """Register a <port> with <switch> """
+    url = object_url('switch', switch, 'port', port)
+    do_put(url)
 
 @cmd
-def port_detach_nic(port):
-    """Detach a <port> on a switch from whatever's connected to it"""
+def port_delete(switch, port):
+    """Delete a <port> from a <switch>"""
+    url = object_url('switch', switch, 'port', port)
+    do_delete(url)
 
-    try:
-        ret = h.port_detach_nic(port)
-        print "Success: Port %s detached " % (port)
-    except DuplicateName as e:
-        print e.message
-    except IncompleteDependency as e:
-        print e.message
-    except UnknownError as e:
-        print e.message
+@cmd
+def port_connect_nic(switch, port, node, nic):
+    """Connect a <port> on a <switch> to a <nic> on a <node>"""
+    url = object_url('switch', switch, 'port', port, 'connect_nic')
+    do_post(url, data={'node': node, 'nic': nic})
+
+@cmd
+def port_detach_nic(switch, port):
+    """Detach a <port> on a <switch> from whatever's connected to it"""
+    url = object_url('switch', switch, 'port', port, 'detach_nic')
+    do_post(url)
 
 @cmd
 def list_free_nodes():
@@ -749,6 +760,27 @@ def stop_console(node):
         print e.message
     except UnknownError as e:
         print e.message
+
+@cmd
+def create_admin_user(username, password):
+    """Create an admin user. Only valid for the database auth backend.
+
+    This must be run on the HaaS API server, with access to haas.cfg and the
+    database. It will create an user named <username> with password
+    <password>, who will have administrator priviledges.
+
+    This command should only be used for bootstrapping the system; once you
+    have an initial admin, you can (and should) create additional users via
+    the API.
+    """
+    if not config.cfg.has_option('extensions', 'haas.ext.auth.database'):
+        sys.exit("'make_inital_admin' is only valid with the database auth backend.")
+    from haas import model
+    from haas.ext.auth.database import User
+    model.init_db(create=False)
+    db = model.Session()
+    db.add(User(label=username, password=password, is_admin=True))
+    db.commit()
 
 @cmd
 def help(*commands):

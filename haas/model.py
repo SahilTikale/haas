@@ -16,7 +16,6 @@
 from sqlalchemy import *
 from sqlalchemy.ext.declarative import declarative_base, declared_attr
 from sqlalchemy.orm import relationship, sessionmaker,backref
-from passlib.hash import sha512_crypt
 from subprocess import call, check_call, Popen, PIPE
 import subprocess
 from haas.network_allocator import get_network_allocator
@@ -30,11 +29,6 @@ import os
 
 Base=declarative_base()
 Session = sessionmaker()
-
-# A joining table for users and projects, which have a many to many relationship:
-user_projects = Table('user_projects', Base.metadata,
-                    Column('user_id', ForeignKey('user.id')),
-                    Column('project_id', ForeignKey('project.id')))
 
 
 def init_db(create=False, uri=None):
@@ -122,110 +116,10 @@ class Node(Model):
     project_id    = Column(ForeignKey('project.id'))
     project       = relationship("Project",backref=backref('nodes'))
 
-    # ipmi connection information:
-    ipmi_host = Column(String, nullable=False)
-    ipmi_user = Column(String, nullable=False)
-    ipmi_pass = Column(String, nullable=False)
-
-    def __init__(self, label, ipmi_host, ipmi_user, ipmi_pass):
-        """Register the given node.
-
-        ipmi_* must be supplied to allow the HaaS to do things like reboot
-        the node.
-
-        The node is initially registered with no nics; see the Nic class.
-        """
-        self.label = label
-        self.ipmi_host = ipmi_host
-        self.ipmi_user = ipmi_user
-        self.ipmi_pass = ipmi_pass
-
-    def _ipmitool(self, args):
-        """Invoke ipmitool with the right host/pass etc. for this node.
-
-        `args` - A list of any additional arguments to pass to ipmitool.
-
-        Returns the exit status of ipmitool.
-
-        NOTE: Includes the ``-I lanplus`` flag, available only in IPMI v2+.
-        This is needed for machines which don't accept the older
-        ``lan`` wire protocol.
-        """
-
-        status = call(['ipmitool',
-            '-I', 'lanplus', # See docstring above
-            '-U', self.ipmi_user,
-            '-P', self.ipmi_pass,
-            '-H', self.ipmi_host] + args)
-        if status != 0:
-            logger = logging.getLogger(__name__)
-            logger.info('Nonzero exit status from ipmitool, args = %r', args)
-        return status
-
-    @no_dry_run
-    def power_cycle(self):
-        """Reboot the node via ipmi.
-
-        Returns True if successful, False otherwise.
-        """
-        self._ipmitool(['chassis', 'bootdev', 'pxe'])
-        if self._ipmitool(['chassis', 'power', 'cycle']) == 0:
-            return
-        if self._ipmitool(['chassis', 'power', 'on']) == 0:
-            # power cycle will fail if the machine isn't running, so let's
-            # just turn it on in that case. This way we can save power by
-            # turning things off without breaking the HaaS.
-            return
-        # If it still doesn't work, then it's a real error:
-        raise OBMError('Could not power cycle node %s' % self.label)
-
-    @no_dry_run
-    def start_console(self):
-        """Starts logging the IPMI console."""
-        # stdin and stderr are redirected to a PIPE that is never read in order
-        # to prevent stdout from becoming garbled.  This happens because
-        # ipmitool sets shell settings to behave like a tty when communicateing
-        # over Serial over Lan
-        Popen(
-            ['ipmitool',
-            '-H', self.ipmi_host,
-            '-U', self.ipmi_user,
-            '-P', self.ipmi_pass,
-            '-I', 'lanplus',
-            'sol', 'activate'],
-            stdin=PIPE,
-            stdout=open(self.get_console_log_filename(), 'a'),
-            stderr=PIPE)
-
-    # stdin, stdout, and stderr are redirected to a pipe that is never read
-    # because we are not interested in the ouput of this command.
-    @no_dry_run
-    def stop_console(self):
-        call(['pkill', '-f', 'ipmitool -H %s' %self.ipmi_host])
-        proc = Popen(
-            ['ipmitool',
-            '-H', self.ipmi_host,
-            '-U', self.ipmi_user,
-            '-P', self.ipmi_pass,
-            '-I', 'lanplus',
-            'sol', 'deactivate'],
-            stdin=PIPE,
-            stdout=PIPE,
-            stderr=PIPE)
-        proc.wait()
-
-    def delete_console(self):
-        if os.path.isfile(self.get_console_log_filename()):
-            os.remove(self.get_console_log_filename())
-
-    def get_console(self):
-        if not os.path.isfile(self.get_console_log_filename()):
-            return None
-        with open(self.get_console_log_filename(), 'r') as log:
-            return "".join(i for i in log.read() if ord(i)<128)
-
-    def get_console_log_filename(self):
-        return '/var/run/haas_console_logs/%s.log' % self.ipmi_host
+    # The Obm info is fetched from the obm class and its respective subclass
+    # pertaining to the node 
+    obm_id = Column(Integer, ForeignKey('obm.id'), nullable=False)
+    obm = relationship("Obm", uselist=False, backref="node", single_parent=True, cascade='all, delete-orphan')
 
 
 class Project(Model):
@@ -324,7 +218,7 @@ class Switch(Model):
     def session(self):
         """Return a session object for the switch.
 
-        Conceputally, a session is an active connection to the switch; it lets
+        Conceptually, a session is an active connection to the switch; it lets
         HaaS avoid connecting and disconnecting for each change. the session
         object must have the methods:
 
@@ -366,34 +260,56 @@ class Switch(Model):
         and have ``session`` just return ``self``.
         """
 
+class Obm(AnonModel):
+    """Obm superclass supporting various drivers 
 
-class User(Model):
-    """A user of the HaaS.
-
-    Right now we're not doing authentication, so this isn't really used. In
-    theory, a user must autheticate, and their membership within projects
-    determines what they are authorized to do.
+    related to out of band management of servers.
     """
+    type = Column(String, nullable=False)
 
-    # The user's salted & hashed password. We currently use sha512 as the
-    # hashing algorithm:
-    hashed_password = Column(String)
+    __mapper_args__ = {
+            'polymorphic_on': type
+            }
+    @staticmethod
+    def validate(kwargs):
+        """Verify that ``kwargs`` is a legal set of keywords args to ``__init__``
 
-    # The projects of which the user is a member.
-    projects = relationship('Project', secondary = user_projects, backref = 'users')
+        Raise a ``schema.SchemaError`` if the  ``kwargs`` is invalid. 
+        Note well: This is a *static* method; it will be invoked on the class.
+        """     
+        assert False, "Subclasses MUST override the validate method "
 
-    def __init__(self, label, password):
-        """Create a user `label` with the specified (plaintext) password."""
-        self.label = label
-        self.set_password(password)
+    def power_cycle(self):
+        """Power cycles the node.
 
-    def verify_password(self, password):
-        """Return whether `password` is the user's (plaintext) password."""
-        return sha512_crypt.verify(password, self.hashed_password)
+        Exact implementation is left to the subclasses.
+        """     
+        assert False, "Subclasses MUST override the power_cycle method "
+    
+    def power_off(self):
+	""" Shuts off the node.
 
-    def set_password(self, password):
-        """Set the user's password to `password` (which must be plaintext)."""
-        self.hashed_password = sha512_crypt.encrypt(password)
+	Exact implementation is left to the subclasses. 
+	"""
+	
+	assert False, "Subclasses MUST override the power_off method "
+    
+    def start_console(self):
+        """Starts logging to the console. """
+        assert False, "Subclasses MUST override the start_console method" 
+
+    def stop_console(self):
+        """Stops console logging. """
+        assert False, "Subclasses MUST override the stop_console method"
+
+    def delete_console(self):
+        assert False, "Subclasses MUST override the delete_console method"
+
+    def get_console(self):
+        assert False, "Subclasses MUST override the get_console method"
+
+    def get_console_log_filename(self):
+        assert False, "Subclasses MUST override the get_console_log_filename method"
 
 
 def _on_virt_uri(args_list):
@@ -461,6 +377,7 @@ class Headnode(Model):
         may be made to it, other than starting, stopping or deleting it.
         """
         check_call(_on_virt_uri(['virsh', 'start', self._vmname()]))
+        check_call(_on_virt_uri(['virsh', 'autostart', self._vmname()]))
         self.dirty = False
 
     @no_dry_run
@@ -470,6 +387,7 @@ class Headnode(Model):
         This does a hard poweroff; the OS is not given a chance to react.
         """
         check_call(_on_virt_uri(['virsh', 'destroy', self._vmname()]))
+        check_call(_on_virt_uri(['virsh', 'autostart', '--disable', self._vmname()]))
 
     def _vmname(self):
         """Returns the name (as recognized by libvirt) of this vm."""

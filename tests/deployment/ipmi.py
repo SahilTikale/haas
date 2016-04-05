@@ -51,22 +51,23 @@ pytestmark = pytest.mark.usefixtures('configure',
                                      'headnode_cleanup')
 
 
-class TestHeadNode:
 
-    def test_headnode(self, db):
-        api.project_create('anvil-nextgen')
-        network_create_simple('spider-web', 'anvil-nextgen')
-        api.headnode_create('hn-0', 'anvil-nextgen', 'base-headnode')
-        api.headnode_create_hnic('hn-0', 'hnic-0')
-        api.headnode_connect_network('hn-0', 'hnic-0', 'spider-web')
-        assert json.loads(api.show_headnode('hn-0'))['vncport'] is None
-        api.headnode_start('hn-0')
-        assert json.loads(api.show_headnode('hn-0'))['vncport'] is not None
-        api.headnode_stop('hn-0')
-        api.headnode_delete('hn-0')
+class TestIpmi():
+    """ Test IPMI driver calls using functions included in the IPMI driver. """
 
-    def test_headnode_deletion_while_running(self, db):
-        api.project_create('anvil-nextgen')
-        api.headnode_create('hn-0', 'anvil-nextgen', 'base-headnode-2')
-        api.headnode_start('hn-0')
-        api.headnode_delete('hn-0')
+    def collect_nodes(self, db):
+        """Collects nodes in the free list."""
+        free_nodes = db.query(Node).filter_by(project_id=None).all()
+        return free_nodes
+
+    def test_node_power_cycle(self, db):
+        nodes = self.collect_nodes(db)
+        for node in nodes:
+            api.node_power_cycle(node.label)
+
+    def test_node_power_off(self, db):
+        nodes = self.collect_nodes(db)
+        for node in nodes:
+            api.node_power_off(node.label)
+
+

@@ -11,16 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from haas import rest
+from haas import rest, config
 
 from abc import ABCMeta, abstractmethod
-from StringIO import StringIO
 import unittest
 import json
-import sys
-
-from werkzeug.routing import Map
-from werkzeug.wrappers import Request
 
 from schema import Schema, Optional
 
@@ -28,49 +23,19 @@ from schema import Schema, Optional
 # complains and doesn't give us a report.
 import pytest
 
+from haas.test_common import config_testsuite
 
-def wsgi_mkenv(method, path, data=None):
-    """Helper routine to build a wsgi environment.
 
-    We need this to generate mock requests.
-    """
-    env = {
-        'REQUEST_METHOD': method,
-        'SCRIPT_NAME': '',
-        'PATH_INFO': path,
-        'SERVER_NAME': 'haas.test-env',
-        'SERVER_PORT': '5000',
-        'wsgi.version': (1, 0),
-        'wsgi.url_scheme': 'http',
-        'wsgi.errors': sys.stderr,
-        'wsgi.multithreaded': False,
-        'wsgi.multiprocess': False,
-        'wsgi.run_once': False,
-    }
-    if data is None:
-        env['wsgi.input'] = StringIO()
-    else:
-        env['wsgi.input'] = StringIO(data)
-    return env
+@pytest.fixture(autouse=True)
+def configure():
+    config_testsuite()
+    config.load_extensions()
 
 
 class HttpTest(unittest.TestCase):
-    """A test which excercises the http server.
-
-    HttpTests run with no api functions registered to the http server yet;
-    this lets us test the http-related code in an environment that is not
-    constrained by our actual api.
-    """
 
     def setUp(self):
-        # We back up the old _url_map, and restore it in tearDown; this makes
-        # it easy to be sure that we're not interfering with other tests:
-        self.old_url_map = rest._url_map
-        # We make ourselves an empty one for our test:
-        rest._url_map = Map()
-
-    def tearDown(self):
-        rest._url_map = self.old_url_map
+        self.client = rest.app.test_client()
 
 
 class HttpEquivalenceTest(object):
@@ -88,11 +53,11 @@ class HttpEquivalenceTest(object):
 
     @abstractmethod
     def request(self):
-        """Return a request which will invoke the api call.
+        """Invoke the API cal via HTTP. returning the response.
 
-        The request should take the form of a WSGI v1.0 environment.
-        The function `wsgi_mkenv` can be used to build a suitable
-        environment.
+        When this method is invoked, `self.client` will be an instance of
+        `flask.testing.FlaskClient`, and should be used to make the request.
+        Its return value is the response, and should be returned as-is.
         """
 
     def api_setup(self):
@@ -114,8 +79,7 @@ class HttpEquivalenceTest(object):
 
         # First invoke the call over http. This should never raise exceptions.
         self.api_setup()
-        req = Request(self.request())
-        resp = rest.request_handler(req)
+        resp = self.request()
         body = resp.get_data()
         self.api_teardown()
 
@@ -123,18 +87,22 @@ class HttpEquivalenceTest(object):
         try:
             self.api_setup()
             ret = self.api_call()
+
+            # Flask has a few different things a function can return; we need
+            # to handle each of them.
             if ret is None:
                 ret_body, ret_status = '', 200
             elif type(ret) is tuple:
                 ret_body, ret_status = ret
             else:
                 ret_body, ret_status = ret, 200
+
             assert resp.status_code == ret_status
             if ret_body == '':
                 assert body == ''
             else:
                 assert json.loads(body) == json.loads(ret_body)
-        except rest.APIError, e:
+        except rest.APIError as e:
             assert resp.status_code == e.status_code
             assert json.loads(body) == {'type': e.__class__.__name__,
                                         'msg': e.message,
@@ -161,53 +129,7 @@ class TestUrlArgs(HttpEquivalenceTest, HttpTest):
         return json.dumps(['alice', 'bob'])
 
     def request(self):
-        return wsgi_mkenv('GET', '/func/alice/bob')
-
-
-class ReturnTest(object):
-    """Superclass for the three tests TestReturn* below.
-
-    Each of these is an HttpEquivalenceTest which exercises the different
-    kinds of permitted return values.
-    """
-    def api_call(self):
-        return self.foo()
-
-    def request(self):
-        return wsgi_mkenv('GET', '/foo')
-
-
-class TestReturn0(ReturnTest, HttpEquivalenceTest, HttpTest):
-
-    def setUp(self):
-        HttpTest.setUp(self)
-
-        @rest.rest_call('GET', '/foo')
-        def foo():
-            pass
-        self.foo = foo
-
-
-class TestReturn1(ReturnTest, HttpEquivalenceTest, HttpTest):
-
-    def setUp(self):
-        HttpTest.setUp(self)
-
-        @rest.rest_call('GET', '/foo')
-        def foo():
-            return '"foo"'
-        self.foo = foo
-
-
-class TestReturn2(ReturnTest, HttpEquivalenceTest, HttpTest):
-
-    def setUp(self):
-        HttpTest.setUp(self)
-
-        @rest.rest_call('GET', '/foo')
-        def foo():
-            return '"foo"', 202
-        self.foo = foo
+        return self.client.get('/func/alice/bob')
 
 
 class TestBodyArgs(HttpEquivalenceTest, HttpTest):
@@ -224,8 +146,9 @@ class TestBodyArgs(HttpEquivalenceTest, HttpTest):
         return json.dumps(['bonnie', 'clyde'])
 
     def request(self):
-        return wsgi_mkenv('POST', '/func/foo',
-                          data=json.dumps({'bar': 'bonnie', 'baz': 'clyde'}))
+        return self.client.post('/func/foo',
+                                data=json.dumps({'bar': 'bonnie',
+                                                 'baz': 'clyde'}))
 
 
 class TestRestCallSchema(HttpEquivalenceTest, HttpTest):
@@ -246,8 +169,8 @@ class TestRestCallSchema(HttpEquivalenceTest, HttpTest):
         return json.dumps(14)
 
     def request(self):
-        return wsgi_mkenv('POST', '/product',
-                            data=json.dumps({'x': 2, 'y': 7}))
+        return self.client.post('/product',
+                                data=json.dumps({'x': 2, 'y': 7}))
 
 
 class TestEquiv_basic_APIError(HttpEquivalenceTest, HttpTest):
@@ -264,7 +187,7 @@ class TestEquiv_basic_APIError(HttpEquivalenceTest, HttpTest):
         raise rest.APIError("Basic test of the APIError code.")
 
     def request(self):
-        return wsgi_mkenv('GET', '/some_error')
+        return self.client.get('/some_error')
 
 
 def _is_error(resp, errtype):
@@ -282,6 +205,26 @@ def _is_error(resp, errtype):
         return False
 
 
+class TestNoneReturnValue(HttpTest):
+    """Test returning None from API calls.
+
+    Flask itself doesn't allow this, but we've been doing it for a long time
+    so our wrapper supports it. This test verifies that it ctually works.
+    """
+
+    def setUp(self):
+        HttpTest.setUp(self)
+
+        @rest.rest_call('GET', '/nothing')
+        def api_call():
+            return None
+
+    def test_none_return(self):
+        resp = self.client.get('/nothing')
+        assert resp.status_code == 200
+        assert resp.get_data() == ''
+
+
 class TestValidationError(HttpTest):
     """basic tests for input validation."""
 
@@ -291,6 +234,10 @@ class TestValidationError(HttpTest):
         @rest.rest_call('POST', '/give-me-an-e')
         def api_call(foo, bar):
             pass
+
+        @rest.rest_call('PUT', '/mixed/args/<arg1>')
+        def mixed_args(arg1, arg2):
+            return json.dumps([arg1, arg2])
 
         @rest.rest_call('PUT', '/custom-schema', schema=Schema({
             "the_value": int,
@@ -304,8 +251,8 @@ class TestValidationError(HttpTest):
         `data` should be a string -- the server will expect valid json, but
         we want to write test cases with invalid input as well.
         """
-        req = Request(wsgi_mkenv('POST', '/give-me-an-e', data=data))
-        return rest.request_handler(req)
+        resp = self.client.post('/give-me-an-e', data=data)
+        return resp
 
     def test_ok(self):
         assert not _is_error(self._do_request(json.dumps({'foo': 'alice',
@@ -313,7 +260,11 @@ class TestValidationError(HttpTest):
                              rest.ValidationError)
 
     def test_bad_json(self):
-        assert _is_error(self._do_request('xploit'), rest.ValidationError)
+        # Illegal JSON gets caught by flask itself, before we get to look at
+        # it. As such, the resulting error isn't an instance of APIError, so
+        # we can't use  `_is_error` here.
+        resp = self._do_request('xploit')
+        assert resp.status_code == 400
 
     def test_missing_bar(self):
         assert _is_error(self._do_request(json.dumps({'foo': 'hello'})),
@@ -325,8 +276,15 @@ class TestValidationError(HttpTest):
                                                       'baz': 'eve'})),
                          rest.ValidationError)
 
+    def test_mixed_args_ok(self):
+        """Test a call that has arguments in both the url and body."""
+        resp = self.client.put('/mixed/args/foo',
+                               data=json.dumps({'arg2': 'bar'}))
+        assert resp.status_code == 200
+        assert json.loads(resp.get_data()) == ['foo', 'bar']
+
     def test_custom_schema(self):
-        assert _is_error(self._do_request(json.dumps({
+        assert _is_error(self.client.put('/custom-schema', data=json.dumps({
             'the_value': 'Not an integer!',
         })), rest.ValidationError)
 
@@ -353,5 +311,5 @@ class TestCallOnce(HttpTest):
             """Increment a counter each time this function is called."""
             self.num_calls += 1
 
-        rest.request_handler(Request(wsgi_mkenv('POST', '/increment')))
+        self.client.post('/increment')
         assert self.num_calls == 1
