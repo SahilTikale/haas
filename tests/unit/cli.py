@@ -22,6 +22,8 @@ def make_config(request):
         config = '\n'.join([
             '[headnode]',
             'base_imgs = base-headnode, img1, img2, img3, img4',
+            '[client]',
+            'endpoint = http://127.0.0.1',
             '[database]',
             'uri = sqlite:///%s/haas.db' % tmpdir,
             '[extensions]',
