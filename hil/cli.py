@@ -411,7 +411,7 @@ def node_register(node, subtype, *args):
         "ipmi", <hostname>, <ipmi-username>, <ipmi-password>
     """
     obm_api = "http://schema.massopencloud.org/haas/v0/obm/"
-    obm_types = ["ipmi", "mock"]
+    obm_types = ["ipmi", "mock", "netns"]
     # Currently the classes are hardcoded
     # In principle this should come from api.py
     # In future an api call to list which plugins are active will be added.
@@ -567,7 +567,7 @@ def switch_register(switch, subtype, *args):
                              ' requires exactly 3 arguments\n')
             sys.stderr.write('<hostname> <username> <password>\n')
             return
-    elif subtype == "powerconnect55xx":
+    elif subtype == "powerconnect55xx" or subtype == "juniper":
         if len(args) == 3:
             switchinfo = {"type": switch_api + subtype, "hostname": args[0],
                           "username": args[1], "password": args[2]}
