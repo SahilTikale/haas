@@ -70,7 +70,7 @@ Doing so is not difficult, and it is critical for security.
 ## Switch drivers
 
 At present, all switch drivers shipped with HIL require that the VLAN
-pool allocator is in use. There are three switch drivers shipped with
+pool allocator is in use. There are five switch drivers shipped with
 HIL:
 
 * ``hil.ext.switches.dell``, which provides a driver for the Dell
@@ -81,6 +81,7 @@ HIL:
   Nexus switches. Only the 3500 and 5500 have been tested, though it is
   possible that other models will work as well.
 * ``hil.ext.switches.brocade``, for the brocade VDX 6740.
+* ``hil.ext.switches.juniper.juniper``, for the juniper qfx 5200
 
 None of the drivers require any extension-specific config options. Per the
 information in `rest_api.md`, the details of certain API calls are

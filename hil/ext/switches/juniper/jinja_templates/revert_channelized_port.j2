@@ -1,0 +1,9 @@
+{# variable 'iface_name' should be like 'et-0/0/11:2' #}
+{# or 'et-0/0/11:0' or 'et-0/0/11:1' #}
+
+interfaces {
+    {{ iface_name }}
+    unit 0 {
+        family ethernet-switching;
+    }
+}
