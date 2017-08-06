@@ -18,7 +18,7 @@ But in theory can work for any Juniper switch that supports NETCONF.
 Driver uses the python library PyEZ made available by Juniper.
 By default it sets NETCONF session over ssh, i.e. make RPC calls over ssh.
 For this to work, make sure that the Juniper switch is configured
-appropriately to recieve NETCONF connections. Default port is 830.
+appropriately to recieve NETCONF connections. Its default port is 830.
 """
 
 import re
@@ -34,14 +34,13 @@ from hil.model import db, Switch
 from hil.migrations import paths
 from os.path import dirname, join
 from hil.migrations import paths
-from hil.ext.switches.juniper.config_tables.ConfigTables import InterfaceConfigTable
+from hil.ext.switches.junos.config_tables.ConfigTables import InterfaceConfigTable
 logger = logging.getLogger(__name__)
 paths[__name__] = join(dirname(__file__), 'migrations', 'juniper')
 
 
 class juniper(Switch):
-    api_name = 'http://schema.massopencloud.org/haas/v0/switches/' \
-        'juniper'
+    api_name = 'http://schema.massopencloud.org/haas/v0/switches/juniper'
 
     __mapper_args__ = {
         'polymorphic_identity': api_name,
@@ -71,7 +70,8 @@ class juniper(Switch):
     def _commit_config(self, loaded_session):
         """ Takes an open session that has loaded configuration change. 
         Commits it if it is correct, otherwise rollback
-        to recent commited state. 
+        to recent commited state.
+        `loaded_session`: session object after new configuration is loaded.
         """
         jun = loaded_session
         if jun.cfg.commit_check:
@@ -80,16 +80,36 @@ class juniper(Switch):
             jun.cfg.rollback
 
     def _set_load_config(self, o_session, set_command):
-        """ Changes the switch config using the 'set' method. 
-        'o_session': object with open connection to the switch
-        'set_command': `set` method based command string.
+        """ Load configuration changes using the 'set' method. 
+        `o_session`: session object with connection to switch already open.
+        `set_command`: Multi-line `set` method based command string.
         """
         jun = o_session
         jun.cfg.load(set_command, format="set")
 
+    def _jinja_load_config(self, o_session, j_template, var_dict):
+        """ Load configuration changes using the 'jinja_template' method.
+        `o_session`: session object with connection to switch already open.
+       `j_template`: jinja2 compliant configuration template. Samples is 
+       available at `junos/jinja_templates/`.
+       `var_dict`: Dictionary of variables to be used in the jinja template
+       passed with `j_template`, that will load the specific configuration 
+       change in the switch.
+       """
+        jun = o_session
+        jun.cfg.load(
+               template_path=j_template, template_vars=var_dict,
+               format='text'
+               )
+
+
     def _set_commit_config(self, set_command):
         """ Changes the switch config by using only 'set' method.
-        'set_command': `set` method based command string.
+        `set_command`: 'set' method based command string.
+        Note: Some configurations changes require both 'set'
+        and 'jinja_template' method. In those cases use combination of functions
+        `_set_load_config`, `_jinja_load_config` as needed finally commit using
+        `_commit_config`. 
         """
 
         jun = self.session()
@@ -97,7 +117,7 @@ class juniper(Switch):
             with jun:
                 self._set_load_config(jun, set_command)
                 self._commit_config(jun)
-            except ConnectError as err:
+        except ConnectError as err:
                 print("connat connect to device: {0}".format(err))
                 sys.exit(1)
 
@@ -109,6 +129,9 @@ class juniper(Switch):
                 interface_config = InterfaceConfigTables(jun)
                 interface_config.get(interface= port, options = {'database':'committed'})
                 ic_dict = json.loads(interface_config.to_json())
+        except ConnectError as err:
+                print("connat connect to device: {0}".format(err))
+                sys.exit(1)
 
         return ic_dict
 
@@ -125,15 +148,11 @@ class juniper(Switch):
             set_mode = """
             set interfaces {port} unit 0 family ethernet-switching interface-mode trunk
         """.format(port=port)
+            self._set_commit_config(set_mode)
         else: 
             self._remove_all_vlans_port(port)
 
         #x = "set interfaces et-0/0/08:0 unit 0 family ethernet-switching interface-mode trunk"
-        set_mode = """ 
-        set interfaces {port} unit 0 family ethernet-switching interface-mode trunk
-        """.format(port=port)
-
-        self._set_commit_config(set_mode)
 
     def _get_native_vlan(self, port):
         """ Returns the id of the native vlan for the trunked port 
@@ -143,44 +162,33 @@ class juniper(Switch):
         return port_info[port]['native_vlan']
 
     def _set_native_vlan(self, port, network_id):
-       """ if `network_id` is provided,, 
-       it sets native vlan for a trunked port.
-       if `network_id` is None, it will remove the 
-       current native vlan id.
-       """
-       if network_id:
-           #x = "set interfaces et-0/0/08:0 native-vlan-id 100"
-           set_native_vlan = """
-           set interface {port} native-vlan-id {network_id}
-           """.format(port=port, network_id=network_id)
-       else:
-           set_native_vlan = """
-           delete interface {port} native-vlan-id {network_id}
-           """.format(port=port, network_id=network_id)
+       """Sets native vlan for a trunked port. """
+       set_native_vlan = """
+       set interface {port} native-vlan-id {network_id}
+        """.format(port=port, network_id=network_id)
+       self._set_commit_config(set_native_vlan)
+
+    def _remove_native_vlan(self, port, network_id):
+        """Removes native_vlan tag from port. """
+
+        remove_native_vlan = """
+        delete interface {port} native-vlan-id {network_id}
+        """.format(port=port)
+        self._set_commit_config(remove_native_vlan)
 
 
-        self._set_commit_config(set_native_vlan)
                 
-#    def _remove_native_vlan(self, port):
-#        """ Removes native vlan from a trunked port. """
-#
-#        delete_native_vlan = """
-#        delete interfaces {port} native-vlan-id
-#       """.format(port=port)
-#
-#        self._set_commit_config(delete_native_vlan)
-    
-    def _add_vlan_from_trunk(self, port, vlan_id):
+    def _add_vlan_to_trunk(self, port, vlan_id):
         """ Adds vlans to a trunk port. """
-        
         #eg: set interfaces et-0/0/08:0 unit 0 family ethernet-switching vlan members 200
+
         add_vlan = """
         set interfaces {port} unit 0 family ethernet-switching vlan members {vlan_id}
         """.format(port=port, vlan_id=vlan_id)
 
         self._set_commit_config(add_vlan)
 
-    def _remove_vlan_port(self, port, vlan_id):
+    def _remove_vlan_from_port(self, port, vlan_id):
         """ removes a single vlan specified by `vlan_id` """
         remove_vlan = """
         delete interfaces {port} unit 0 family ethernet-switching vlan members {vlan_id}
@@ -191,17 +199,32 @@ class juniper(Switch):
         """ Removes all vlans from the port, including the native vlan.
         Also converts the interface to access mode. 
         """
-            remove_all_vlans = """
+        remove_all_vlans = """
             delete interfaces {port} unit 0 family ethernet-switching vlan
             delete interfaces {port} unit 0 family ethernet-switching interface-mode
             delete interfaces {port} native-vlan-id
             """.format(port=port)
-            self._set_commit_config(remove_all_vlans)
+        self._set_commit_config(remove_all_vlans)
 
     def _get_port_networks(self, port):
-        """ List all the vlans shared with the port. """
+        """ Returns list of all the vlans shared with the port. """
         port_info = self._interface_info(port)
         return port_info[port]['vlans'] 
+
+    def _set_port_state(self, port, state):
+        """ Disables or enables the `port`. 
+        Depending on the value of `state`.
+        """
+
+        if state == "enable":
+            set_port_state = """
+            delete interface {port} disable
+            """.format(port=port)
+        elif state == "disable":
+            set_port_state = """
+            set interface {port} disable
+            """.format(port=port)
+        self._set_commit_config(remove_vlan)
 
     def revert_port(self, port):
         """Resets the port to the factory default.
@@ -218,9 +241,9 @@ class juniper(Switch):
         """.format(iface=port_name['port_name'])
 
         if port[-2] == ":":
-            base_config='jinja_templates/revert_channelized_port.j2'
+            base_config='junos/jinja_templates/revert_channelized_port.j2'
         else:
-            base_config='jinja_templates/revert_nonchannelized_port.j2'
+            base_config='junos/jinja_templates/revert_nonchannelized_port.j2'
         
         try:
             with jun:
@@ -241,21 +264,30 @@ class juniper(Switch):
         except Exception as err:
             print (err)
 
-
-    def _set_port_state(self, port, state):
-        """ Disables or enables the `port`. 
-        Depending on the value of `state`.
+    def modify_port(self, port, channel, network_id):
+        """ Changes vlan assignment to the port.
         """
 
-        if state == "enable":
-            set_port_state = """
-            delete interface {port} disable
-            """.format(port=port)
-        elif state == "disable":
-            set_port_state = """
-            set interface {port} disable
-            """.format(port=port)
-        self._set_commit_config(remove_vlan)
+        (port,) = filter(lambda p: p.label == port, self.ports)
+        interface = port.label
+
+        if channel == 'vlan/native':
+            if network_id is None:
+                self._remove_native_vlan(interface)
+            else:
+                self._set_native_vlan(interface, network_id)
+        else:
+            match = re.match(re.compile(r'vlan/(\d+)'), channel)
+            assert match is not None, "HIL passed an invalid channel to the" \
+                    " switch!"
+             #Discuss this with Kristi
+        vlan_id = match.groups()[0]
+
+        if network_id is None:
+            self._remove_vlan_from_port(port, vlan_id)
+        else:
+            assert network_id == vlan_id
+            self._add_vlan_to_trunk(interface, vlan_id)
 
 
 
