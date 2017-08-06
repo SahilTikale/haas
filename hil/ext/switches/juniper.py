@@ -24,6 +24,7 @@ appropriately to recieve NETCONF connections. Its default port is 830.
 import re
 import logging
 import schema
+import json
 
 from jnpr.junos import Device
 from jnpr.junos.exception import ConnectError
