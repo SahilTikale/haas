@@ -1,11 +1,14 @@
+{# Will set a given port to trunk, vlan to default and state disabled
 {# variable 'port_name' should be like 'et-0/0/11' #}
-{# or 'et-0/0/12' or 'et-0/0/8' #}
+{# or 'et-0/0/12' or 'et-0/0/8:1' #}
 {# Also make sure that dictionary passed to template_vars #}
 {# contains keys that matches the variable names that are used here #}
 interfaces {
             {{ port_name }} {
+    disable;
     unit 0 {
         family ethernet-switching {
+	    interface-mode trunk;
             vlan {
                 members default;
             }

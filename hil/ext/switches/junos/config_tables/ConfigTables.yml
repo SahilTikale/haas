@@ -15,6 +15,7 @@ InterfaceConfigTable:
   view: InterfaceConfigView
 InterfaceConfigView:
   fields:
+    disabled: { disable : False=()}
     interface_name: name
     logical_interface: unit/name
     trunk_mode: { unit/family/ethernet-switching/interface-mode : True=regex(trunk) }

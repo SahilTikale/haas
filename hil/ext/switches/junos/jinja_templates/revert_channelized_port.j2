@@ -1,8 +1,10 @@
 {# variable 'iface_name' should be like 'et-0/0/11:2' #}
 {# or 'et-0/0/11:0' or 'et-0/0/11:1' #}
+{# Also make sure that dictionary passed to template_vars #}
+{# contains keys that matches the variable names that are used here #}
 
 interfaces {
-    {{ iface_name }}
+    {{ port_name }}
     unit 0 {
         family ethernet-switching;
     }
