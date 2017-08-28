@@ -90,6 +90,10 @@ class Juniper(Switch):
     def disconnect(self):
         pass
 
+    @staticmethod
+    def validate_port_name(port):
+        pass
+
     def _create_session(self):
         dev = Device(
                 host=self.hostname, user=self.username, passwd=self.password
@@ -177,7 +181,7 @@ class Juniper(Switch):
         `loaded_session`: session object after new configuration is loaded.
         """
         jun = loaded_session
-        if jun.cfg.commit_check:
+        if jun.cfg.commit_check():
             jun.cfg.commit()
         else:
             jun.cfg.rollback()
@@ -279,6 +283,32 @@ class Juniper(Switch):
                 except VlanAddError as e:
                     return e
 
+    def get_port_networks(self, ports):
+        """ Get port configurations of the switch. 
+
+        Args:
+            ports: List of ports to get the configuration for.
+
+        Returns: Dictionary containing the configuration of the form:
+
+        { 
+        Port<"et-0/0/11">: [("vlan/native", "100"), ("100","200", "300", 400")],
+        Port<"et-0/0/8:1">: [("vlan/native", "200"), ("200", "80", "101")],
+        . . . 
+        }
+        """
+        response = {}
+        all_output = []
+        for port in ports:
+            port_info = self._interface_info(port)
+            native_no = str(port_info[port]['native_vlan'])
+            all_output = [('vlan/native', native_no)]
+            for vlan in port_info[port]['vlans']:
+                all_output.append(('vlan/'+str(vlan), str(vlan)))
+        response[port] = filter(lambda x: x[0] not in ['vlan/default', 'vlan/'+native_no], all_output)
+
+        return response
+
     def _set_native_vlan(self, port, network_id):
         """Sets native vlan for a trunked port.
         It enables the port, if it is the first vlan for the port.
@@ -335,11 +365,6 @@ class Juniper(Switch):
                 sys.exit(1)
 
         return ic_dict
-
-    def _get_port_networks(self, port):
-        """ Returns list of all the vlans shared with the port. """
-        port_info = self._interface_info(port)
-        return port_info[port]['vlans']
 
     def _add_vlan_to_trunk(self, port, vlan_id):
         """ Adds vlans to a trunk port. """
