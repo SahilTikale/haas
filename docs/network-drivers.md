@@ -220,7 +220,7 @@ in the console of the switch, ex. ``101/0/10``.
 #### Switch preparation
 
 1. The driver relies on netconf protocol to manage the switch. 
-It is important switch is configured for responding to netconf connections. 
+It is important to configure switch to enable netconf connection.
 With administration privileges, running the following command in 
 configuration mode should set it up for netconf based connections. 
 
@@ -231,11 +231,18 @@ set system services netconf ssh
 2. Driver relies on the PyEZ library, a python wrapper that for netconf 
 using `ncc client`. Make sure it is installed before using the driver. 
 
-3. VLANS that HIL will manage should be preconfigured on switch. 
+3. VLANS that HIL will manage should be preconfigured on switch.
+For each VLAN that HIL will manage, create it on the switch using following commands.
+To create a vlan with name `hil-500` having vlan-id 500, do the following,
+in configuration mode run:
+
+```
+set vlans hil-500 vlan-id 500
+``` 
 
 4. Configure the initial state of the interface (ports) configuration manually.
 Then copy the configuration as a jinja2 template and store it at
-`hil/ext/switches/junos/jinja_templates`. This will used by `revert_port` 
+`hil/ext/switches/junos/jinja_templates`. This will by used by `revert_port` 
 to reset the ports to its initial conditions when required. 
 
 #### switch_resister
@@ -255,8 +262,8 @@ without any changes but it has not been tested yet.
 ####
 
 Port naems must be of the same form accepted by the switch's cli interface,
-e.g. ``et-0/0/0`` is a physical port. A 40Gig port when distributed as a 4
-10G ports is called a ``channelized`` port. and it can be registered as
+e.g. ``et-0/0/0`` is a physical port. A 40Gig port when distributed as 4
+10G ports each, it is called a ``channelized`` port. and it can be registered as
 ``et-0/0/08:0``, ``et-0/0/08:1`` and so on. 
 
 ### Using multiple switches

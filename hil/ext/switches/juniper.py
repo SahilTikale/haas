@@ -35,30 +35,35 @@ from jnpr.junos.utils.config import ConfigLoadError
 
 
 from hil.model import db, Switch, Network
-#from hil.cnfig import cfg
+from hil.model import BigIntegerType
 from hil.migrations import paths
 from os.path import dirname, join
 from hil.migrations import paths
-from hil.ext.switches.junos.config_tables.ConfigTables import InterfaceConfigTable
+from hil.ext.switches.junos.config_tables.ConfigTables import (
+        InterfaceConfigTable
+        )
 logger = logging.getLogger(__name__)
 paths[__name__] = join(dirname(__file__), 'migrations', 'juniper')
+
 
 class VlanAddError(Exception):
     pass
 
+
 class ConfigCommitError(Exception):
     pass
+
 
 class Juniper(Switch):
     api_name = 'http://schema.massopencloud.org/haas/v0/switches/juniper'
     dir_name = os.path.dirname(__file__)
-
-
     __mapper_args__ = {
         'polymorphic_identity': api_name,
     }
 
-    id = db.Column(db.Integer, db.ForeignKey('switch.id'), primary_key=True)
+    id = db.Column(
+            BigIntegerType, db.ForeignKey('switch.id'), primary_key=True
+            )
     hostname = db.Column(db.String, nullable=False)
     username = db.Column(db.String, nullable=False)
     password = db.Column(db.String, nullable=False)
@@ -86,7 +91,9 @@ class Juniper(Switch):
         pass
 
     def _create_session(self):
-        dev = Device(host=self.hostname, user=self.username, passwd=self.password)
+        dev = Device(
+                host=self.hostname, user=self.username, passwd=self.password
+                )
         dev.bind(cfg=Config)
         return dev
 
@@ -126,8 +133,6 @@ class Juniper(Switch):
 
     def _clear_set_commands(self):
         """ Clears the values of the following variables."""
-
-        
         self.enable_interface = None
         self.set_trunk_mode = None
         self.add_vlan = None
@@ -135,7 +140,6 @@ class Juniper(Switch):
         self.set_native_vlan = None
         self.remove_native_vlan = None
         self.remove_default_vlan = None
-
 
     def _set_load_config(self, o_session, set_command):
         """ Load configuration changes using the 'set' method.
@@ -154,7 +158,7 @@ class Juniper(Switch):
     def _jinja_load_config(self, o_session, j_template, var_dict):
         """ Load configuration changes using the 'jinja_template' method.
         `o_session`: session object with connection to switch already open.
-       `j_template`: jinja2 compliant configuration template. Samples is
+       `j_template`: jinja2 compliant configuration template. Samples are
        available at `junos/jinja_templates/`.
        `var_dict`: Dictionary of variables to be used in the jinja template
        passed with `j_template`, that will load the specific configuration
@@ -182,10 +186,10 @@ class Juniper(Switch):
     def _set_commit_config(self, set_command):
         """ Changes the switch config by using only 'set' method.
         `set_command`: 'set' method based command string.
-        Note: Some configurations changes require both 'set'
-        and 'jinja_template' method. In those cases use combination of functions
-        `_set_load_config`, `_jinja_load_config` as needed finally commit using
-        `_commit_config`.
+        Note: Some configurations changes require both 'set' and
+        'jinja_template' method. In those cases use combination of functions
+        `_set_load_config`, `_jinja_load_config` as needed
+        finally commit using `_commit_config`.
         """
 
         jun = self._create_session()
@@ -195,7 +199,10 @@ class Juniper(Switch):
                 try:
                     self._commit_config(jun)
                 except ConfigCommitError as err:
-                    message = "Inconsistent configuration, cannot commit. Exiting.".format(err)
+                    message = (
+                            "Inconsistent configuration, \
+                                    cannot commit. Exiting.".format(err)
+                                    )
                     return sys.exit(1)
         except ConnectError as err:
             message = "cannot connect to device: {0}".format(err)
@@ -205,20 +212,21 @@ class Juniper(Switch):
         """Resets the port to the factory default.
         Running this function will replace the port settings
         with the ones stored in the jinja template `jinja_templates/`
-        It reset any port to default port config as defined in 
+        It reset any port to default port config as defined in
         `default_port_config.j2`.
         """
-        port_name = { 'port_name': port } # make sure the key here matches 
-                # variable names used in the corresponding jinja templates.
+        port_name = {'port_name': port}  # make sure the key here matches
+        # variable names used in the corresponding jinja templates.
         jun = self._create_session()
-        err_list = [] # To avoid the issue of referencing before assigment.
-                      # in case where only one of cfg.load fails.
+        err_list = []  # To avoid the issue of referencing before assigment.
+        # in case where only one of cfg.load fails.
         rm_curr_port_config = """
         delete interfaces {iface}
         """.format(iface=port_name['port_name'])
 
-        base_config = self.dir_name+'/junos/jinja_templates/default_port_config.j2'
-        
+        base_config = self.dir_name\
+            + '/junos/jinja_templates/default_port_config.j2'
+
         try:
             with jun:
                 try:
@@ -226,8 +234,8 @@ class Juniper(Switch):
                 except ConfigLoadError as e1:
                     err_list.append(e1)
                 try:
-                    jun.cfg.load( 
-                            template_path = base_config, 
+                    jun.cfg.load(
+                            template_path=base_config,
                             template_vars=port_name,
                             format='text'
                             )
@@ -235,13 +243,7 @@ class Juniper(Switch):
                     err_list.append(e2)
                     return err_list
 
-                if jun.cfg.commit_check():
-                    jun.cfg.commit()
-                    print "configuration committed successfully"
-                else:
-                    jun.cfg.rollback()
-                    print "Committed rolledback."
-                
+                self._commit_config(jun)
         except ConnectError as err:
             print ("Cannot connect to device: {0}".format(err))
             sys.exit(1)
@@ -249,10 +251,10 @@ class Juniper(Switch):
             print (err)
 
     def modify_port(self, port, channel, network_id):
-        """ Changes vlan assignment to the port. 
-        `node_connect_network` with 'vlan/native' flag: 
-            enable port; set port to trunk mode; assign native_vlan; 
-            remove default vlan
+        """ Changes vlan assignment to the port.
+        `node_connect_network` with 'vlan/native' flag:
+        enable port; set port to trunk mode; assign native_vlan;
+        remove default vlan
         """
         (port,) = filter(lambda p: p.label == port, self.ports)
         interface = port.label
@@ -265,7 +267,7 @@ class Juniper(Switch):
         else:
             match = re.match(re.compile(r'vlan/(\d+)'), channel)
             assert match is not None, "HIL passed an invalid channel to the" \
-                    " switch!"
+                " switch!"
             vlan_id = match.groups()[0]
 
             if network_id is None:
@@ -278,13 +280,12 @@ class Juniper(Switch):
                     return e
 
     def _set_native_vlan(self, port, network_id):
-        """Sets native vlan for a trunked port. 
+        """Sets native vlan for a trunked port.
         It enables the port, if it is the first vlan for the port.
         """
         port_info = self._interface_info(port)
         self._set_commands(port, network_id)
         set_native_vlan = self.set_native_vlan
-       
         if port_info[port]['trunk_mode']:
             pass
         else:
@@ -300,12 +301,12 @@ class Juniper(Switch):
         self._clear_set_commands()
 
     def _remove_native_vlan(self, port):
-        """Removes native vlan from a trunked port. 
-        If it is the last vlan to be removed, it disables the port and 
+        """Removes native vlan from a trunked port.
+        If it is the last vlan to be removed, it disables the port and
         reverts its state to default configuration
         """
         port_info = self._interface_info(port)
-        vlan_id = str(port_info[port]['native_vlan']) 
+        vlan_id = str(port_info[port]['native_vlan'])
         self._set_commands(port, vlan_id)
         remove_native_vlan = self.remove_native_vlan
         if isinstance(port_info[port]['vlans'], (str, unicode)):
@@ -325,10 +326,12 @@ class Juniper(Switch):
         try:
             with jun:
                 interface_config = InterfaceConfigTable(jun)
-                interface_config.get(interface= port, options = {'database':'committed'})
+                interface_config.get(
+                        interface=port, options={'database': 'committed'}
+                        )
                 ic_dict = json.loads(interface_config.to_json())
         except ConnectError as err:
-                print("connat connect to device: {0}".format(err))
+                print("cannot connect to device: {0}".format(err))
                 sys.exit(1)
 
         return ic_dict
@@ -349,11 +352,10 @@ class Juniper(Switch):
             add_vlan = self.set_trunk_mode + add_vlan
 
         if port_info[port]['disabled']:
-           add_vlan = self.enable_interface + add_vlan
+            add_vlan = self.enable_interface + add_vlan
 
         if 'default' in port_info[port]['vlans']:
-            add_vlan = add_vlan + self.remove_default_vlan 
-        
+            add_vlan = add_vlan + self.remove_default_vlan
         self._set_commit_config(add_vlan)
         self._clear_set_commands()
 
@@ -363,11 +365,9 @@ class Juniper(Switch):
 
         self._set_commands(port, vlan_id)
         port_info = self._interface_info(port)
-        remove_vlan =  self.remove_vlan
-        
+        remove_vlan = self.remove_vlan
         if isinstance(port_info[port]['vlans'], (str, unicode)):
             self.revert_port(port)
         else:
             self._set_commit_config(remove_vlan)
-        
         self._clear_set_commands()
