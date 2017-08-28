@@ -34,7 +34,7 @@ from jnpr.junos.utils.config import Config
 from jnpr.junos.utils.config import ConfigLoadError
 
 
-from hil.model import db, Switch, Network
+from hil.model import db, Switch
 from hil.model import BigIntegerType
 from hil.migrations import paths
 from os.path import dirname, join
