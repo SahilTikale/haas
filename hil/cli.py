@@ -79,7 +79,7 @@ def cmd(f):
         except InvalidAPIArgumentsException as e:
             if e.message != '':
                 sys.stderr.write(e.message + '\n\n')
-            sys.stderr.write('Invalid arguements.  Usage:\n')
+            sys.stderr.write('Invalid arguments.  Usage:\n')
             help(f.__name__)
 
     command_dict[f.__name__] = wrapped
@@ -133,6 +133,8 @@ def setup_http_client():
         return
     # Next try keystone:
     try:
+        from keystoneauth1.identity import v3
+        from keystoneauth1 import session
         os_auth_url = os.getenv('OS_AUTH_URL')
         os_password = os.getenv('OS_PASSWORD')
         os_username = os.getenv('OS_USERNAME')
@@ -163,10 +165,10 @@ def check_status_code(response):
     if response.status_code < 200 or response.status_code >= 300:
         sys.stderr.write('Unexpected status code: %d\n' % response.status_code)
         sys.stderr.write('Response text:\n')
-        sys.stderr.write(response.text + "\n")
+        sys.stderr.write(response.content + "\n")
         raise FailedAPICallException()
     else:
-        sys.stdout.write(response.text + "\n")
+        sys.stdout.write(response.content + "\n")
 
 # Function object_url should be DELETED.
 # TODO: This function's name is no longer very accurate.  As soon as it is
@@ -177,6 +179,7 @@ def object_url(*args):
     # Prefer an environmental variable for getting the endpoint if available.
     url = os.environ.get('HIL_ENDPOINT')
     if url is None:
+        config.setup()
         url = cfg.get('client', 'endpoint')
 
     for arg in args:
@@ -225,13 +228,15 @@ def serve(port):
         sys.exit('Unxpected Error!!! \n %s' % e)
 
     """Start the HIL API server"""
+    config.setup()
     if cfg.has_option('devel', 'debug'):
         debug = cfg.getboolean('devel', 'debug')
     else:
         debug = False
     # We need to import api here so that the functions within it get registered
     # (via `rest_call`), though we don't use it directly:
-    from hil import model, api, rest
+    # pylint: disable=unused-variable
+    from hil import api, rest
     server.init()
     migrations.check_db_schema()
     server.stop_orphan_consoles()
@@ -243,6 +248,7 @@ def serve_networks():
     """Start the HIL networking server"""
     from hil import model, deferred
     from time import sleep
+    config.setup()
     server.init()
     server.register_drivers()
     server.validate_state()
@@ -785,6 +791,7 @@ def create_admin_user(username, password):
     have an initial admin, you can (and should) create additional users via
     the API.
     """
+    config.setup()
     if not config.cfg.has_option('extensions', 'hil.ext.auth.database'):
         sys.exit("'make_inital_admin' is only valid with the database auth"
                  " backend.")
@@ -794,6 +801,17 @@ def create_admin_user(username, password):
     model.init_db()
     db.session.add(User(label=username, password=password, is_admin=True))
     db.session.commit()
+
+
+@cmd
+def list_active_extensions():
+    """List active extensions by type. """
+    all_extensions = C.extensions.list_active()
+    if not all_extensions:
+        print "No active extensions"
+    else:
+        for ext in all_extensions:
+            print ext
 
 
 @cmd
@@ -819,7 +837,6 @@ def main():
     this function.
     """
     ensure_not_root()
-    config.setup()
 
     if len(sys.argv) < 2 or sys.argv[1] not in command_dict:
         # Display usage for all commands

@@ -26,11 +26,11 @@ class Node(ClientBase):
         # Node requires which OBM, and knows arguments required
         # for successful node registration.
 
-        obm_api = "http://schema.massopencloud.org/haas/v0/obm/"
-        obm_types = ["ipmi", "mock"]
         # FIXME: In future obm_types should be dynamically fetched.
         # We need a new api call for querying available
         # and currently active drivers for HIL
+        # obm_api = "http://schema.massopencloud.org/haas/v0/obm/"
+        # obm_types = ["ipmi", "mock"]
         raise NotImplementedError
 
     def delete(self, node_name):
@@ -38,10 +38,13 @@ class Node(ClientBase):
         url = self.object_url('node', node_name)
         return self.check_response(self.httpClient.request('DELETE', url))
 
-    def power_cycle(self, node_name):
+    def power_cycle(self, node_name, force=False):
         """Power cycles the <node> """
         url = self.object_url('node', node_name, 'power_cycle')
-        return self.check_response(self.httpClient.request('POST', url))
+        payload = json.dumps({'force': force})
+        return self.check_response(
+                self.httpClient.request('POST', url, data=payload)
+                )
 
     def power_off(self, node_name):
         """Power offs the <node> """

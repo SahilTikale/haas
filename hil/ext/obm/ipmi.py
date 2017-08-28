@@ -23,11 +23,21 @@ from hil.dev_support import no_dry_run
 from subprocess import call, Popen, PIPE
 import os
 
+from os.path import join, dirname
+from hil.migrations import paths
+from sqlalchemy import BigInteger
+from sqlalchemy.dialects import sqlite
+
+paths[__name__] = join(dirname(__file__), 'migrations', 'ipmi')
+
+BigIntegerType = BigInteger().with_variant(
+                sqlite.INTEGER(), 'sqlite')
+
 
 class Ipmi(Obm):
     valid_bootdevices = ['disk', 'pxe', 'none']
 
-    id = db.Column(db.Integer, db.ForeignKey('obm.id'), primary_key=True)
+    id = db.Column(BigIntegerType, db.ForeignKey('obm.id'), primary_key=True)
     host = db.Column(db.String, nullable=False)
     user = db.Column(db.String, nullable=False)
     password = db.Column(db.String, nullable=False)
@@ -68,9 +78,13 @@ class Ipmi(Obm):
         return status
 
     @no_dry_run
-    def power_cycle(self):
+    def power_cycle(self, force):
         self._ipmitool(['chassis', 'bootdev', 'pxe'])
-        if self._ipmitool(['chassis', 'power', 'cycle']) == 0:
+        if force:
+            op = 'reset'
+        else:
+            op = 'cycle'
+        if self._ipmitool(['chassis', 'power', op]) == 0:
             return
         if self._ipmitool(['chassis', 'power', 'on']) == 0:
             # power cycle will fail if the machine is not running.

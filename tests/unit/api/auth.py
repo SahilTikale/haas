@@ -634,7 +634,7 @@ admin_calls = [
         'password': 'changeme',
     }),
     (api.switch_delete, ['empty-switch'], {}),
-    (api.switch_register_port, ['stock_switch_0', 'new_port'], {}),
+    (api.switch_register_port, ['stock_switch_0', 'gi1/0/13'], {}),
     (api.switch_delete_port, ['stock_switch_0', 'free_port_0'], {}),
     (api.port_connect_nic, ['stock_switch_0', 'free_port_0',
                             'free_node_0', 'boot-nic'], {}),
@@ -643,6 +643,7 @@ admin_calls = [
     (api.node_set_metadata, ['free_node_0', 'EK', 'pk'], {}),
     (api.node_delete_metadata, ['runway_node_0', 'EK'], {}),
     (api.port_revert, ['stock_switch_0', 'free_node_0_port'], {}),
+    (api.list_active_extensions, [], {}),
 ]
 
 

@@ -26,6 +26,8 @@ import schema
 
 from hil.migrations import paths
 from hil.model import db, Switch
+from hil.errors import BadArgumentError
+from hil.model import BigIntegerType
 
 paths[__name__] = join(dirname(__file__), 'migrations', 'brocade')
 
@@ -39,7 +41,8 @@ class Brocade(Switch):
         'polymorphic_identity': api_name,
     }
 
-    id = db.Column(db.Integer, db.ForeignKey('switch.id'), primary_key=True)
+    id = db.Column(BigIntegerType,
+                   db.ForeignKey('switch.id'), primary_key=True)
     hostname = db.Column(db.String, nullable=False)
     username = db.Column(db.String, nullable=False)
     password = db.Column(db.String, nullable=False)
@@ -56,6 +59,16 @@ class Brocade(Switch):
 
     def session(self):
         return self
+
+    @staticmethod
+    def validate_port_name(port):
+        """Valid port names for this switch are of the form 1/0/1 or 1/2"""
+
+        val = re.compile(r'^\d+/\d+(/\d+)?$')
+        if not val.match(port):
+            raise BadArgumentError("Invalid port name. Valid port names for "
+                                   "this switch are of the from 1/0/1 or 1/2")
+        return
 
     def disconnect(self):
         pass

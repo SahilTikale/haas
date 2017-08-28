@@ -4,8 +4,11 @@ from hil.client.switch import Switch
 from hil.client.switch import Port
 from hil.client.network import Network
 from hil.client.user import User
+from hil.client.extensions import Extensions
 import abc
 import requests
+
+from collections import namedtuple
 
 
 class HTTPClient(object):
@@ -18,7 +21,7 @@ class HTTPClient(object):
     __metaclass__ = abc.ABCMeta
 
     @abc.abstractmethod
-    def request(method, url, data=None, params=None):
+    def request(self, method, url, data=None, params=None):
         """Make an HTTP request
 
         Makes an HTTP request on URL `url` with method `method`, request body
@@ -41,18 +44,50 @@ class HTTPClient(object):
         Returns
         -------
 
-        requests.Response
+        HTTPResponse
             The HTTP response
         """
+
+
+class HTTPResponse(namedtuple('HTTPResponse', ['status_code',
+                                               'headers',
+                                               'content'])):
+    """An http response.
+
+    Attributes
+    ----------
+
+    status_code : int
+        The http status code
+    headers : dict
+        http headers
+    content : str
+        The body of the response
+    """
 
 
 class RequestsHTTPClient(requests.Session, HTTPClient):
     """An HTTPClient which uses the requests library.
 
-    Note that this doesn't do anything over `requests.Session`; that
-    class already implements the required interface. We declare it only
-    for clarity.
+    This is a thin wrapper around `requests.Session`; all it does is
+    convert the response to an `HTTPResponse`.
+
+    The requests library's Response object actually satisfies the
+    needed interface by itself, but by wrapping it we decrease the
+    odds of accidentally depending on requests-specific functionality.
     """
+
+    # disable a pylint warning about arguments that don't match the
+    # superclass's; we just pass these straight through to the super
+    # class's method, so *args, **kwargs let's us ignore what they
+    # are entirely.
+    #
+    # pylint: disable=arguments-differ
+    def request(self, *args, **kwargs):
+        resp = requests.Session.request(self, *args, **kwargs)
+        return HTTPResponse(status_code=resp.status_code,
+                            headers=resp.headers,
+                            content=resp.content)
 
 
 class KeystoneHTTPClient(HTTPClient):
@@ -86,12 +121,16 @@ class KeystoneHTTPClient(HTTPClient):
         try:
             # The order of these parameters is different that what
             # we expect, but the names are the same:
-            return self.session.request(method=method,
+            resp = self.session.request(method=method,
                                         url=url,
                                         data=data,
                                         params=params)
+
         except HttpError as e:
-            return e.response
+            resp = e.response
+        return HTTPResponse(status_code=resp.status_code,
+                            headers=resp.headers,
+                            content=resp.content)
 
 
 class Client(object):
@@ -105,3 +144,4 @@ class Client(object):
         self.port = Port(self.endpoint, self.httpClient)
         self.network = Network(self.endpoint, self.httpClient)
         self.user = User(self.endpoint, self.httpClient)
+        self.extensions = Extensions(self.endpoint, self.httpClient)

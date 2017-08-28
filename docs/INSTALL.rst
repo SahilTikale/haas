@@ -94,9 +94,10 @@ hil.cfg
 --------
 
 HIL is configured with ``hil.cfg``. This file contains settings for both the
-CLI client and the server. Carefully read the ``hil.cfg*`` files in
-``examples/``, to understand and correctly set all of the options.  In
-particular, the following two fields in the ``headnode`` section are very
+CLI client and the server. If ``hil.cfg`` is not found, hil would refuse to run
+and exit. Carefully read the ``hil.cfg*`` files in ``examples/``,
+to understand and correctly set all of the options.  In particular,
+the following two fields in the ``headnode`` section are very
 important: ``trunk_nic`` must match your choice of trunk NIC in the "Networking
 - Bridges" instructions below; ``base_imgs`` must match the name of the base
 headnode libvirt instance created in the "Libvirt" instructions below.
@@ -144,6 +145,16 @@ To enable the database backend, make sure the **[extensions]** section of
 ``hil.cfg`` contains::
 
   hil.ext.auth.database =
+
+Keystone Backend
+^^^^^^^^^^^^^^^^
+
+To enable the Keystone backend, make sure the **[extensions]** section of
+``hil.cfg`` contains::
+
+  hil.ext.auth.keystone =
+
+Visit the `Keystone configuration guide <keystone-auth.html>`_ for more information.
 
 Null Backend
 ^^^^^^^^^^^^
@@ -394,6 +405,8 @@ former is a WSGI application, which we recommend running with Apache's
 
 (The file may already exist, with just the ``LoadModule`` option. If so, it is
 safe to replace it.)
+
+**Note:** if accessing HIL through a public IP address, be sure to change the ``VirtualHost`` entry accordingly. `VirtualHost documentation <https://httpd.apache.org/docs/current/mod/core.html#virtualhost>`_
 
 **Note:** certain calls to HIL such as *port_register()* may pass arbitrary
 strings that should be escaped (see `issue 361 <https://github.com/CCI-MOC/hil/issues/360>`_). By default, Apache `Doesn't

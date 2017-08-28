@@ -37,7 +37,7 @@ class APIError(HTTPException):
         HTTPException.__init__(self)
         self.message = message
 
-    def get_response(self, environ):
+    def get_response(self, environ=None):
         """The body of the http response corresponding to this error."""
         # TODO: We're getting deprecation errors about the use of self.message.
         # We should figure out what the right way to do this is.
@@ -68,7 +68,7 @@ class DuplicateError(APIError):
     status_code = 409  # Conflict
 
 
-class AllocationError(APIError):
+class AllocationError(ServerError):
     """An exception indicating resource exhaustion."""
 
 

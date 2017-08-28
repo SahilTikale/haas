@@ -1,6 +1,7 @@
 """ This module implements the HIL client library. """
 
 from urlparse import urljoin
+import json
 
 
 class FailedAPICallException(Exception):
@@ -36,11 +37,15 @@ class ClientBase(object):
         return url
 
     def check_response(self, response):
-        if response.ok:
-            if response.request.method == 'GET':
-                return response.json()
-            else:  # For methods PUT, POST, DELETE
+        if 200 <= response.status_code < 300:
+            try:
+                return json.loads(response.content)
+            except ValueError:  # No JSON request body; typical
+                                # For methods PUT, POST, DELETE
                 return
         else:
-            e = response.json()
-            raise FailedAPICallException(e['msg'])
+            e = json.loads(response.content)
+            if e.keys()[0] == 'error':
+                raise FailedAPICallException(e['error']['message'])
+            else:
+                raise FailedAPICallException(e['msg'])

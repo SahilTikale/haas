@@ -172,7 +172,16 @@ Enter the environment (do this every time you start working with HIL dev environ
 Then, proceed with installing the HIL and its dependencies into the virtual
 environment::
 
-  pip install -e .
+  pip install -e .[tests]
+
+The ``[tests]`` part pulls in dependencies only needed for running the test
+suite. There are several other "extras" you can specify, which pull in
+dependencies needed for optional HIL features:
+
+* ``postgres`` to use a PostgreSQL database.
+* ``keystone-auth-backend`` for the keystone auth backend.
+* ``keystone-client`` for keystone support in the client library and command
+  line tool.
 
 
 For older systems:
@@ -214,14 +223,15 @@ Ubuntu::
 After these packages have been installed, you'll then need the python postgres
 driver in your HIL virtualenv::
 
-  pip install psycopg2
+  pip install -e .[postgres]
 
 
 Configuring HIL
 -----------------
 
 Now the ``hil`` executable should be in your path. First, create a
-configuration file ``hil.cfg``. There are two examples for you to work from,
+configuration file ``hil.cfg`` because if it's not found then hil would refuse
+to run and exit. There are two examples for you to work from,
 ``examples/hil.cfg.dev-no-hardware``, which is oriented towards development,
 and ``examples/hil.cfg`` which is more production oriented. These config files
 are well commented; read them carefully.

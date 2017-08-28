@@ -5,6 +5,13 @@ import logging
 from hil.network_allocator import NetworkAllocator, set_network_allocator
 from hil.model import db
 from hil.config import cfg
+from hil.errors import BlockedError
+
+from os.path import join, dirname
+from hil.migrations import paths
+from hil.model import BigIntegerType
+
+paths[__name__] = join(dirname(__file__), 'migrations', 'vlan_pool')
 
 
 def get_vlan_list():
@@ -69,6 +76,20 @@ class VlanAllocator(NetworkAllocator):
         except ValueError:
             return False
 
+    def claim_network_id(self, net_id):
+        vlan = Vlan.query.filter_by(vlan_no=net_id).first()
+        if vlan is None:
+            return
+        elif vlan.available:
+            vlan.available = False
+        else:
+            raise BlockedError("Network ID is not available."
+                               " Please choose a different ID.")
+
+    def is_network_id_in_pool(self, net_id):
+        vlan = Vlan.query.filter_by(vlan_no=net_id).first()
+        return vlan is not None
+
 
 class Vlan(db.Model):
     """A VLAN for the Dell switch
@@ -80,7 +101,7 @@ class Vlan(db.Model):
     2. The VLAN number is actually allocated to the HIL; on some deployments
        we may have specific vlan numbers that we are allowed to use.
     """
-    id = db.Column(db.Integer, primary_key=True)
+    id = db.Column(BigIntegerType, primary_key=True)
     vlan_no = db.Column(db.Integer, nullable=False, unique=True)
     available = db.Column(db.Boolean, nullable=False)
 
