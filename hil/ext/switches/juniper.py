@@ -284,28 +284,34 @@ class Juniper(Switch):
                     return e
 
     def get_port_networks(self, ports):
-        """ Get port configurations of the switch. 
+        """ Get port configurations of the switch.
 
         Args:
             ports: List of ports to get the configuration for.
 
         Returns: Dictionary containing the configuration of the form:
 
-        { 
-        Port<"et-0/0/11">: [("vlan/native", "100"), ("100","200", "300", 400")],
-        Port<"et-0/0/8:1">: [("vlan/native", "200"), ("200", "80", "101")],
-        . . . 
+        {
+            Port<"port-3">: [("vlan/native", "23"), ("vlan/52", "52")],
+            Port<"port-7">: [("vlan/23", "23")],
+            Port<"port-8">: [("vlan/native", "52")],
+            ...
         }
         """
         response = {}
         all_output = []
-        for port in ports:
+        for x in ports:
+            port = x.label
             port_info = self._interface_info(port)
             native_no = str(port_info[port]['native_vlan'])
             all_output = [('vlan/native', native_no)]
             for vlan in port_info[port]['vlans']:
                 all_output.append(('vlan/'+str(vlan), str(vlan)))
-        response[port] = filter(lambda x: x[0] not in ['vlan/default', 'vlan/'+native_no], all_output)
+                response[port] = filter(
+                        lambda x: x[0] not in [
+                            'vlan/default', 'vlan/'+native_no
+                            ], all_output
+                        )
 
         return response
 
