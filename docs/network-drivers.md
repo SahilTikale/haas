@@ -245,7 +245,7 @@ Then copy the configuration as a jinja2 template and store it at
 `hil/ext/switches/junos/jinja_templates`. This will by used by `revert_port` 
 to reset the ports to its initial conditions when required. 
 
-#### switch_resister
+#### switch_register
 
 To register a Juniper QFX5200 switch, the ``"type"`` field of the request body
 must have a value of::
@@ -261,7 +261,7 @@ without any changes but it has not been tested yet.
 
 ####
 
-Port naems must be of the same form accepted by the switch's cli interface,
+Port names must be of the same form accepted by the switch's cli interface,
 e.g. ``et-0/0/0`` is a physical port. A 40Gig port when distributed as 4
 10G ports each, it is called a ``channelized`` port. and it can be registered as
 ``et-0/0/08:0``, ``et-0/0/08:1`` and so on. 
