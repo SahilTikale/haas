@@ -34,11 +34,9 @@ from jnpr.junos.utils.config import Config
 from jnpr.junos.utils.config import ConfigLoadError
 
 
-from hil.model import db, Switch
-from hil.model import BigIntegerType
+from hil.model import db, Switch, BigIntegerType
 from hil.migrations import paths
 from os.path import dirname, join
-from hil.migrations import paths
 from hil.ext.switches.junos.config_tables.ConfigTables import (
         InterfaceConfigTable
         )
@@ -47,10 +45,12 @@ paths[__name__] = join(dirname(__file__), 'migrations', 'juniper')
 
 
 class VlanAddError(Exception):
+    """ Raise this exception when vlan cannot be added to the port."""
     pass
 
 
 class ConfigCommitError(Exception):
+    """ Raise this exception if there are commit conflicts."""
     pass
 
 
@@ -155,6 +155,9 @@ class Juniper(Switch):
             jun.cfg.load(set_command, format="set")
         except ConfigLoadError as e:
             if e.message == "warning: statement not found":
+                # to make operations idempotent.
+                # If same operation is executed twice,
+                # this warning is generated. It can be safely ignored.
                 pass
             else:
                 return e
@@ -207,7 +210,7 @@ class Juniper(Switch):
                             "Inconsistent configuration, \
                                     cannot commit. Exiting.".format(err)
                                     )
-                    return sys.exit(1)
+                    sys.exit(1)
         except ConnectError as err:
             message = "cannot connect to device: {0}".format(err)
             return message
@@ -216,7 +219,7 @@ class Juniper(Switch):
         """Resets the port to the factory default.
         Running this function will replace the port settings
         with the ones stored in the jinja template `jinja_templates/`
-        It reset any port to default port config as defined in
+        It resets any port to default port config as defined in
         `default_port_config.j2`.
         """
         port_name = {'port_name': port}  # make sure the key here matches
@@ -341,9 +344,7 @@ class Juniper(Switch):
         port_info = self._interface_info(port)
         self._set_commands(port, network_id)
         set_native_vlan = self.set_native_vlan
-        if port_info[port]['trunk_mode']:
-            pass
-        else:
+        if not port_info[port]['trunk_mode']:
             set_native_vlan = self.set_trunk_mode + set_native_vlan
 
         if port_info[port]['disabled']:

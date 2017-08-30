@@ -82,7 +82,7 @@ HIL:
   possible that other models will work as well.
 * ``hil.ext.switches.brocade``, for the brocade VDX 6740.
 * ``hil.ext.switches.juniper.juniper``, for the juniper qfx 5200, 
-but potentially can be used to manage any junos based switch. 
+  but potentially can be used to manage any junos based switch. 
 
 None of the drivers require any extension-specific config options. Per the
 information in `rest_api.md`, the details of certain API calls are
