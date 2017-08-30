@@ -285,34 +285,53 @@ class Juniper(Switch):
 
     def get_port_networks(self, ports):
         """ Get port configurations of the switch.
+        This is an important function for deployment tests.
 
         Args:
-            ports: List of ports to get the configuration for.
+            ports: List of sqlalchemy objects representing ports.
 
         Returns: Dictionary containing the configuration of the form:
+        Make sure the output looks equivalent to the one in the example.
 
         {
-            Port<"port-3">: [("vlan/native", "23"), ("vlan/52", "52")],
-            Port<"port-7">: [("vlan/23", "23")],
-            Port<"port-8">: [("vlan/native", "52")],
+            <hil.model.Port object at 0x7f00ca35f950>:
+            [("vlan/native", "23"), ("vlan/52", "52")],
+            <hil.model.Port object at 0x7f00cb64fcd0>: [("vlan/23", "23")],
+            <hil.model.Port object at 0x7f00cabcd100>: [("vlan/native", "52")],
             ...
         }
         """
         response = {}
         all_output = []
-        for x in ports:
-            port = x.label
+        for p_obj in ports:
+            port = p_obj.label
             port_info = self._interface_info(port)
-            native_no = str(port_info[port]['native_vlan'])
-            all_output = [('vlan/native', native_no)]
-            for vlan in port_info[port]['vlans']:
-                all_output.append(('vlan/'+str(vlan), str(vlan)))
-                response[port] = filter(
+            native_no = port_info[port]['native_vlan']
+            vlans = port_info[port]['vlans']
+            if vlans == 'default':
+                response[p_obj] = []
+            elif vlans == native_no:
+                response[p_obj] = [('vlan/native', str(native_no))]
+            elif native_no is None and isinstance(vlans, (str, unicode)):
+                response[p_obj] = [('vlan/'+str(vlans), str(vlans))]
+            elif native_no is None and isinstance(vlans, list):
+                for vlan in vlans:
+                    all_output.append(('vlan/'+str(vlan), str(vlan)))
+                response[p_obj] = filter(
                         lambda x: x[0] not in [
-                            'vlan/default', 'vlan/'+native_no
+                            'vlan/default', 'vlan/'+str(native_no)
                             ], all_output
                         )
-
+            else:
+                native_no = str(native_no)
+                all_output = [('vlan/native', native_no)]
+                for vlan in port_info[port]['vlans']:
+                    all_output.append(('vlan/'+str(vlan), str(vlan)))
+                response[p_obj] = filter(
+                        lambda x: x[0] not in [
+                            'vlan/default', 'vlan/'+str(native_no)
+                            ], all_output
+                        )
         return response
 
     def _set_native_vlan(self, port, network_id):
@@ -392,7 +411,6 @@ class Juniper(Switch):
 
     def _remove_vlan_from_port(self, port, vlan_id):
         """ removes a single vlan specified by `vlan_id` """
-#        import pdb; pdb.set_trace()
 
         self._set_commands(port, vlan_id)
         port_info = self._interface_info(port)
