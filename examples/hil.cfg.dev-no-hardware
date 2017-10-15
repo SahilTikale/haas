@@ -26,6 +26,10 @@ dry_run=True
 
 [extensions]
 hil.ext.switches.mock =
+#hil.ext.switches.juniper = /etc/hil/junos
+#Uncomment the above line to use juniper driver.
+#Copy junos directory from hil/junos to /etc/hil/junos
+#for the driver to work as intended.
 hil.ext.obm.mock =
 hil.ext.network_allocators.null =
 hil.ext.auth.null =
