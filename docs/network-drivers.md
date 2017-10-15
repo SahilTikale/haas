@@ -242,8 +242,15 @@
 
 	4. Configure the initial state of the interface (ports) configuration manually.
 	Then copy the configuration as a jinja2 template and store it at
-	`hil/ext/switches/junos/jinja_templates`. This will by used by `revert_port` 
-	to reset the ports to its initial conditions when required. 
+	`hil/scripts/junos/jinja_templates`. Copy ``junos`` from `hil/scripts` to
+	`/etc/hil/` and set the driver value to `/etc/hil/junos/`.
+	This will by used by `revert_port` to reset the ports to its initial conditions 
+	when required. Add the below line in hil.cfg
+
+	```
+	hil.ext.switches.juniper = /etc/hil/junos
+	```
+	
 
 	#### switch_register
 
