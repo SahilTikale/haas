@@ -36,10 +36,21 @@ from jnpr.junos.utils.config import ConfigLoadError
 
 from hil.model import db, Switch, BigIntegerType
 from hil.migrations import paths
+from hil import config
+from hil.config import cfg
 from os.path import dirname, join
-from hil.ext.switches.junos.config_tables.ConfigTables import (
-        InterfaceConfigTable
-        )
+
+import pdb; pdb.set_trace()
+config.load()
+j_driver = 'hil.ext.switches.juniper'
+if cfg.has_option('extensions', j_driver):
+    template_dir = cfg.get('extensions', j_driver)
+    sys.path.append(template_dir)
+    try:
+        from config_tables.ConfigTables import InterfaceConfigTable
+    except ImportError:
+        pass
+
 logger = logging.getLogger(__name__)
 paths[__name__] = join(dirname(__file__), 'migrations', 'juniper')
 
