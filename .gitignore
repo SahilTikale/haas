@@ -1,3 +1,4 @@
+.DS_Store
 *.swp
 *.pyc
 *.~
@@ -12,3 +13,4 @@ dist
 /testsuite.cfg
 /site-layout.json
 /.cache
+hil.log
