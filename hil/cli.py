@@ -564,7 +564,7 @@ def switch_register(switch, subtype, *args):
                              '<hostname> <username> <password>'
                              '<dummy_vlan_no>\n')
             return
-    elif subtype == "mock" or subtype == "ovs":
+    elif subtype == "mock":
         if len(args) == 3:
             switchinfo = {"type": switch_api + subtype, "hostname": args[0],
                           "username": args[1], "password": args[2]}
