@@ -259,7 +259,7 @@ information to connect to the switch via netconf over ssh using PyEZ library.
 The driver can potentially work with wide range of JUNOS based switches 
 without any changes but it has not been tested yet. 
 
-####
+#### switch_register_port
 
 Port names must be of the same form accepted by the switch's cli interface,
 e.g. ``et-0/0/0`` is a physical port. A 40Gig port when distributed as 4
