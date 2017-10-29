@@ -39,17 +39,21 @@ from hil.migrations import paths
 from hil import config
 from hil.config import cfg
 from os.path import dirname, join
+from hil.ext.switches.junos.config_tables.ConfigTables import (
+        InterfaceConfigTable
+        )
 
-import pdb; pdb.set_trace()
-config.load()
-j_driver = 'hil.ext.switches.juniper'
-if cfg.has_option('extensions', j_driver):
-    template_dir = cfg.get('extensions', j_driver)
-    sys.path.append(template_dir)
-    try:
-        from config_tables.ConfigTables import InterfaceConfigTable
-    except ImportError:
-        pass
+# import pdb; pdb.set_trace()
+# config.load()
+# j_driver = 'hil.ext.switches.juniper'
+# if cfg.has_option('extensions', j_driver):
+#    template_dir = cfg.get('extensions', j_driver)
+#    sys.path.append(template_dir)
+#    try:
+#        from config_tables.ConfigTables import InterfaceConfigTable
+#    except ImportError:
+#        pass
+# STILL WORKING ON THIS
 
 logger = logging.getLogger(__name__)
 paths[__name__] = join(dirname(__file__), 'migrations', 'juniper')
@@ -79,14 +83,6 @@ class Juniper(Switch):
     username = db.Column(db.String, nullable=False)
     password = db.Column(db.String, nullable=False)
 
-    enable_interface = None
-    add_vlan = None
-    remove_vlan = None
-    set_native_vlan = None
-    remove_native_vlan = None
-    remove_default_vlan = None
-    set_trunk_mode = None
-
     @staticmethod
     def validate(kwargs):
         schema.Schema({
@@ -112,49 +108,53 @@ class Juniper(Switch):
         dev.bind(cfg=Config)
         return dev
 
-    def _set_commands(self, port, vlan_id):
-        """ Set of common `set` commands used by other functions."""
-        port_set = "set interfaces {port}".format(port=port)
-        port_del = "delete interfaces {port}".format(port=port)
+    def _str_enable_interface(self, port):
+        """ activate a dormant interface."""
+        return "delete interfaces {port} disable\n".format(port=port)
 
-        self.enable_interface = """
-        {port_del} disable""".format(port_del=port_del)
+    def _str_set_trunk_mode(self, port):
+        """ sets interface to trunk mode. """
+        return (
+                "set interfaces {port} unit 0 family \
+                ethernet-switching interface-mode trunk\n".format(port=port)
+                )
 
-        self.set_trunk_mode = """
-        {port_set} unit 0 family ethernet-switching interface-mode trunk
-        """.format(port_set=port_set)
+    def _str_add_vlan(self, port, vlan_id):
+        """ Adds vlan to the interface. """
+        return (
+            "set interfaces {port} unit 0 family ethernet-switching vlan \
+                    members {vlan_id}\n".format(port=port, vlan_id=vlan_id)
+                )
 
-        self.add_vlan = """
-        {port_set} unit 0 family ethernet-switching vlan members {vlan_id}
-        """.format(port_set=port_set, vlan_id=vlan_id)
+    def _str_remove_vlan(self, port, vlan_id):
+        """ removes vlan allocated to an interface. """
+        return (
+            "delete interfaces {port} unit 0 family ethernet-switching vlan \
+                    members {vlan_id}\n".format(port=port, vlan_id=vlan_id)
+                )
 
-        self.remove_vlan = """
-            {port_del} unit 0 family ethernet-switching vlan members {vlan_id}
-            """.format(port_del=port_del, vlan_id=vlan_id)
+    def _str_set_native_vlan(self, port, vlan_id):
+        """ sets a vlan to be native for an interface. """
+        return(
+            "set interfaces {port} native-vlan-id {vlan_id}\n\
+                set interfaces {port} unit 0 family ethernet-switching \
+                vlan members {vlan_id}\n".format(port=port, vlan_id=vlan_id)
+                )
 
-        self.set_native_vlan = """
-        {port_set} native-vlan-id {vlan_id}
-        {port_set} unit 0 family ethernet-switching vlan members {vlan_id}
-        """.format(port_set=port_set, vlan_id=vlan_id)
+    def _str_remove_native_vlan(self, port, vlan_id):
+        """ removes native vlan from interface. """
+        return(
+            "delete interfaces {port} native-vlan-id \n\
+                delete interfaces {port} unit 0 family ethernet-switching \
+                vlan members {vlan_id}\n".format(port=port, vlan_id=vlan_id)
+                )
 
-        self.remove_native_vlan = """
-        {port_del} native-vlan-id
-        {port_del} unit 0 family ethernet-switching vlan members {vlan_id}
-        """.format(port_del=port_del, vlan_id=vlan_id)
-
-        self.remove_default_vlan = """
-        {port_del} unit 0 family ethernet-switching vlan members default
-        """.format(port_del=port_del)
-
-    def _clear_set_commands(self):
-        """ Clears the values of the following variables."""
-        self.enable_interface = None
-        self.set_trunk_mode = None
-        self.add_vlan = None
-        self.remove_vlan = None
-        self.set_native_vlan = None
-        self.remove_native_vlan = None
-        self.remove_default_vlan = None
+    def _str_remove_default_vlan(self, port):
+        """ removes default vlan from interface. """
+        return(
+            "delete interfaces {port} unit 0 family ethernet-switching vlan \
+                    members default\n".format(port=port)
+                )
 
     def _set_load_config(self, o_session, set_command):
         """ Load configuration changes using the 'set' method.
@@ -353,19 +353,19 @@ class Juniper(Switch):
         It enables the port, if it is the first vlan for the port.
         """
         port_info = self._interface_info(port)
-        self._set_commands(port, network_id)
-        set_native_vlan = self.set_native_vlan
+        set_native_vlan = self._str_set_native_vlan(port, network_id)
         if not port_info[port]['trunk_mode']:
-            set_native_vlan = self.set_trunk_mode + set_native_vlan
+            set_native_vlan = self._str_set_trunk_mode(port) + set_native_vlan
 
         if port_info[port]['disabled']:
-            set_native_vlan = self.enable_interface + set_native_vlan
+            set_native_vlan = self._str_enable_interface(port) + \
+                    set_native_vlan
 
         if 'default' in port_info[port]['vlans']:
-            set_native_vlan = set_native_vlan + self.remove_default_vlan
+            set_native_vlan = set_native_vlan + \
+                    self._str_remove_default_vlan(port)
 
         self._set_commit_config(set_native_vlan)
-        self._clear_set_commands()
 
     def _remove_native_vlan(self, port):
         """Removes native vlan from a trunked port.
@@ -374,13 +374,11 @@ class Juniper(Switch):
         """
         port_info = self._interface_info(port)
         vlan_id = str(port_info[port]['native_vlan'])
-        self._set_commands(port, vlan_id)
-        remove_native_vlan = self.remove_native_vlan
+        remove_native_vlan = self._str_remove_native_vlan(port, vlan_id)
         if isinstance(port_info[port]['vlans'], (str, unicode)):
             self.revert_port(port)
         else:
             self._set_commit_config(remove_native_vlan)
-        self._clear_set_commands()
 
     def _get_mode(self, port):
         """Returns True if the port is in trunk mode else returns False. """
@@ -406,29 +404,25 @@ class Juniper(Switch):
     def _add_vlan_to_trunk(self, port, vlan_id):
         """ Adds vlans to a trunk port. """
 
-        self._set_commands(port, vlan_id)
         port_info = self._interface_info(port)
-        add_vlan = self.add_vlan
+        add_vlan = self._str_add_vlan(port, vlan_id)
 
         if not port_info[port]['trunk_mode']:
-            add_vlan = self.set_trunk_mode + add_vlan
+            add_vlan = self._str_set_trunk_mode(port) + add_vlan
 
         if port_info[port]['disabled']:
-            add_vlan = self.enable_interface + add_vlan
+            add_vlan = self._str_enable_interface(port) + add_vlan
 
         if 'default' in port_info[port]['vlans']:
-            add_vlan = add_vlan + self.remove_default_vlan
+            add_vlan = add_vlan + self._str_remove_default_vlan(port)
         self._set_commit_config(add_vlan)
-        self._clear_set_commands()
 
     def _remove_vlan_from_port(self, port, vlan_id):
         """ removes a single vlan specified by `vlan_id` """
 
-        self._set_commands(port, vlan_id)
         port_info = self._interface_info(port)
-        remove_vlan = self.remove_vlan
+        remove_vlan = self._str_remove_vlan(port, vlan_id)
         if isinstance(port_info[port]['vlans'], (str, unicode)):
             self.revert_port(port)
         else:
             self._set_commit_config(remove_vlan)
-        self._clear_set_commands()
