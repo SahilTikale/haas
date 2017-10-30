@@ -81,8 +81,8 @@
 	  Nexus switches. Only the 3500 and 5500 have been tested, though it is
 	  possible that other models will work as well.
 	* ``hil.ext.switches.brocade``, for the brocade VDX 6740.
-	* ``hil.ext.switches.juniper.juniper``, for the juniper qfx 5200, 
-	  but potentially can be used to manage any junos based switch. 
+	* ``hil.ext.switches.juniper.juniper``, for the juniper qfx 5200,
+	  but potentially can be used to manage any junos based switch.
 
 	None of the drivers require any extension-specific config options. Per the
 	information in `rest_api.md`, the details of certain API calls are
@@ -219,17 +219,17 @@
 
 	#### Switch preparation
 
-	1. The driver relies on netconf protocol to manage the switch. 
+	1. The driver relies on netconf protocol to manage the switch.
 	It is important to configure switch to enable netconf connection.
-	With administration privileges, running the following command in 
-	configuration mode should set it up for netconf based connections. 
+	With administration privileges, running the following command in
+	configuration mode should set it up for netconf based connections.
 
 	```
 	set system services netconf ssh
 	```
 
-	2. Driver relies on the PyEZ library, a python wrapper that for netconf 
-	using `ncc client`. Make sure it is installed before using the driver. 
+	2. Driver relies on the PyEZ library, a python wrapper that for netconf
+	using `ncc client`. Make sure it is installed before using the driver.
 
 	3. VLANS that HIL will manage should be preconfigured on switch.
 	For each VLAN that HIL will manage, create it on the switch using following commands.
@@ -238,19 +238,19 @@
 
 	```
 	set vlans hil-500 vlan-id 500
-	``` 
+	```
 
 	4. Configure the initial state of the interface (ports) configuration manually.
 	Then copy the configuration as a jinja2 template and store it at
 	`hil/scripts/junos/jinja_templates`. Copy ``junos`` from `hil/scripts` to
 	`/etc/hil/` and set the driver value to `/etc/hil/junos/`.
-	This will by used by `revert_port` to reset the ports to its initial conditions 
+	This will by used by `revert_port` to reset the ports to its initial conditions
 	when required. Add the below line in hil.cfg
 
 	```
 	hil.ext.switches.juniper = /etc/hil/junos
 	```
-	
+
 
 	#### switch_register
 
@@ -259,19 +259,19 @@
 
 		http://schema.massopencloud.org/haas/v0/switches/juniper
 
-	In addition, it requires three extra fields: 
+	In addition, it requires three extra fields:
 	``"username"``, ``"hostname"``, and ``"pasword"``, which provide the necessary
 	information to connect to the switch via netconf over ssh using PyEZ library.
-	``"hostname"`` can be an IP address too. 
-	The driver can potentially work with wide range of JUNOS based switches 
-	without any changes but it has not been tested yet. 
+	``"hostname"`` can be an IP address too.
+	The driver can potentially work with wide range of JUNOS based switches
+	without any changes but it has not been tested yet.
 
 	#### switch_register_port
 
 	Port names must be of the same form accepted by the switch's cli interface,
 	e.g. ``et-0/0/0`` is a physical port. A 40Gig port when distributed as 4
 	10G ports each, it is called a ``channelized`` port. and it can be registered as
-	``et-0/0/08:0``, ``et-0/0/08:1`` and so on. 
+	``et-0/0/08:0``, ``et-0/0/08:1`` and so on.
 
 
 	### Dell Networking OS 9 driver

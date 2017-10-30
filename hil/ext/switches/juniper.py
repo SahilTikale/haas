@@ -36,8 +36,6 @@ from jnpr.junos.utils.config import ConfigLoadError
 
 from hil.model import db, Switch, BigIntegerType
 from hil.migrations import paths
-from hil import config
-from hil.config import cfg
 from os.path import dirname, join
 from hil.ext.switches.junos.config_tables.ConfigTables import (
         InterfaceConfigTable
@@ -70,6 +68,7 @@ class ConfigCommitError(Exception):
 
 
 class Juniper(Switch):
+    """ Juniper driver for HIL. """
     api_name = 'http://schema.massopencloud.org/haas/v0/switches/juniper'
     dir_name = os.path.dirname(__file__)
     __mapper_args__ = {
@@ -95,6 +94,7 @@ class Juniper(Switch):
         return self
 
     def disconnect(self):
+        """ disconnect from superclass."""
         pass
 
     @staticmethod
