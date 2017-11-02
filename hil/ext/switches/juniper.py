@@ -171,7 +171,8 @@ class Juniper(Switch):
                 # this warning is generated. It can be safely ignored.
                 pass
             else:
-                return e
+                logger.error("ConfigLoadError: "+e.message)
+                sys.exit(1)
 
     def _jinja_load_config(self, o_session, j_template, var_dict):
         """ Load configuration changes using the 'jinja_template' method.
@@ -221,10 +222,12 @@ class Juniper(Switch):
                             "Inconsistent configuration, \
                                     cannot commit. Exiting.".format(err)
                                     )
+                    logger.error(message)
                     sys.exit(1)
         except ConnectError as err:
             message = "cannot connect to device: {0}".format(err)
-            return message
+            logger.error(message)
+            sys.exit(1)
 
     def revert_port(self, port):
         """Resets the port to the factory default.
@@ -251,6 +254,11 @@ class Juniper(Switch):
                     jun.cfg.load(rm_curr_port_config, format="set")
                 except ConfigLoadError as e1:
                     err_list.append(e1)
+                    logger.error(
+                            "REVERT PORT: \
+                                    Removing Port Configuration failed: "+e1
+                                    )
+                    sys.exit(1)
                 try:
                     jun.cfg.load(
                             template_path=base_config,
@@ -259,14 +267,18 @@ class Juniper(Switch):
                             )
                 except ConfigLoadError as e2:
                     err_list.append(e2)
-                    return err_list
+                    logger.error(
+                        "REVERT PORT: \
+                                rewriting port config failed: "+e2
+                                )
+
+                    sys.exit(1)
 
                 self._commit_config(jun)
         except ConnectError as err:
-            print ("Cannot connect to device: {0}".format(err))
+            message = "Cannot connect to device: {0}".format(err)
+            logger.error(message)
             sys.exit(1)
-        except Exception as err:
-            print (err)
 
     def modify_port(self, port, channel, network_id):
         """ Changes vlan assignment to the port.
@@ -295,7 +307,8 @@ class Juniper(Switch):
                 try:
                     self._add_vlan_to_trunk(interface, vlan_id)
                 except VlanAddError as e:
-                    return e
+                    logger.error(e)
+                    sys.exit(1)
 
     def get_port_networks(self, ports):
         """ Get port configurations of the switch.
@@ -396,7 +409,8 @@ class Juniper(Switch):
                         )
                 ic_dict = json.loads(interface_config.to_json())
         except ConnectError as err:
-                print("cannot connect to device: {0}".format(err))
+                message = "cannot connect to device: {0}".format(err)
+                logger.error(message)
                 sys.exit(1)
 
         return ic_dict
